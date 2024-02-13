@@ -1,0 +1,8 @@
+gym==0.23.0
+numpy
+pandas
+h5py
+pyrallis
+torch
+tqdm
+wandb

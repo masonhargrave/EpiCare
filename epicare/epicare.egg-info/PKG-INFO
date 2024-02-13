@@ -1,0 +1,11 @@
+Metadata-Version: 2.1
+Name: epicare
+Version: 0.0.1
+Requires-Dist: gym==0.23.0
+Requires-Dist: numpy
+Requires-Dist: pandas
+Requires-Dist: h5py
+Requires-Dist: pyrallis
+Requires-Dist: torch
+Requires-Dist: tqdm
+Requires-Dist: wandb

@@ -1,0 +1,6 @@
+matplotlib
+ipykernel
+scikit-learn
+umap-learn
+seaborn
+tueplots

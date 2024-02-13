@@ -1,0 +1,20 @@
+method: random
+metric:
+  goal: maximize
+  name: mean_normalized_score
+parameters:
+  num_checkpoints:
+    values:
+      - 0
+  alpha:
+    values:
+      - 1.0
+      - 2.0
+      - 2.5
+      - 3.0
+      - 4.0
+  temperature:
+    distribution: log_uniform_values
+    max: 10.0
+    min: 0.01
+program: td3_bc.py

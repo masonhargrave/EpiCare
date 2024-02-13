@@ -1,0 +1,21 @@
+method: random
+metric:
+  goal: maximize
+  name: normalized_scores_mean
+parameters:
+  num_checkpoints:
+    values:
+      - 0
+  awac_lambda:
+    distribution: uniform
+    max: 1.0
+    min: 0.1
+  temperature:
+    distribution: log_uniform_values
+    max: 10.0
+    min: 0.01
+  learning_rate:
+    distribution: log_uniform_values
+    max: 3e-3
+    min: 3e-5
+program: awac.py

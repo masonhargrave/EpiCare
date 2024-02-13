@@ -1,0 +1,27 @@
+method: random
+metric:
+  goal: maximize
+  name: normalized_score
+parameters:
+  num_checkpoints:
+    values:
+      - 0
+  iql_tau:
+    values:
+      - 0.5
+      - 0.7
+      - 0.9
+  beta:
+    values:
+      - 3.0
+      - 6.0
+      - 10.0
+  temperature:
+    distribution: log_uniform_values
+    max: 10.0
+    min: 0.1
+  actor_dropout:
+    values:
+      - 0.0
+      - 0.1
+program: iql.py

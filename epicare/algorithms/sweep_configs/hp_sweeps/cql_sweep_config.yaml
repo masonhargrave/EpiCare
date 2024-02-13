@@ -1,0 +1,32 @@
+method: random
+metric:
+  goal: maximize
+  name: normalized_score_mean
+parameters:
+  num_checkpoints:
+    values:
+      - 0
+  qf_lr:
+    values:
+      - 1e-4
+      - 3e-5
+  policy_lr:
+    values:
+      - 1e-4
+      - 3e-5
+      - 3e-4
+  cql_target_action_gap:
+    values:
+      - -1.0
+      - 2.0
+      - 5.0
+      - 10.0
+  cql_lagrange:
+    values:
+      - True
+      - False
+  temperature:
+    distribution: log_uniform_values
+    max: 10.0
+    min: 0.1
+program: cql.py

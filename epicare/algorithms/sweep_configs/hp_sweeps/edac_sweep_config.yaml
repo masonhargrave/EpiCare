@@ -1,0 +1,21 @@
+method: random
+metric:
+  goal: maximize
+  name: eval/normalized_score_mean
+parameters:
+  num_checkpoints:
+    values:
+      - 0
+  num_critics:
+    distribution: q_uniform
+    max: 250
+    min: 10
+  eta:
+    distribution: log_uniform_values
+    max: 1000.0
+    min: 0.01
+  temperature:
+    distribution: log_uniform_values
+    max: 100.0
+    min: 0.1
+program: edac.py
