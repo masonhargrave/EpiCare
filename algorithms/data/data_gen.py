@@ -13,6 +13,8 @@ with tqdm(total=len(seeds) * 2) as pbar:
             # Initialize environment
             env = EpiCare(seed=seed)
 
+            print(env.num_symptoms_for_disease_range)
+
             # Choose the policy type here based on your needs
             policy = ClinicalTrial(env)
 
@@ -45,13 +47,7 @@ with tqdm(total=len(seeds) * 2) as pbar:
                     )  # Store the probability of the chosen action
                     data["rewards"].append(reward)
                     data["terminals"].append(done)
-                    if not done:
-                        data["next_observations"].append(next_obs)
-                    else:
-                        # Handle the final observation for terminal states
-                        data["next_observations"].append(
-                            obs
-                        )  # could use a placeholder or the current obs
+                    data["next_observations"].append(next_obs)
 
                     obs = next_obs  # Update the current observation
 

@@ -130,3 +130,7 @@ These instructions work for all other algorithms provided simply by swapping out
 In the `figures` directory we have included a jupyter notebook with examples for how we analyzed our results and produced most of the figures found in our paper. After running all full-data and data restriction trials as described above, this notebook should allow to to reproduce the main results of the paper.
 
 The python packages required to run `figures.ipynb` are included in `requiremkents.txt`. To install, run `pip install -f requirements.txt` while in the `figures` directory.
+
+```
+
+```

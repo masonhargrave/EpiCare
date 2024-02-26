@@ -5,7 +5,7 @@ metric:
 parameters:
   num_checkpoints:
     values:
-      - 0
+      - null
   iql_tau:
     values:
       - 0.5
@@ -24,4 +24,8 @@ parameters:
     values:
       - 0.0
       - 0.1
+  frame_stack:
+    values:
+      - 1
+      - 8
 program: iql.py

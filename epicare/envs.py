@@ -132,6 +132,7 @@ class EpiCare(gym.Env):
         symptom_std_range=(0.10, 0.30),
         remission_reward=64,
         remission_prob_range=(0.8, 1.0),
+        baseline_symptom_range=(0.0, 0.3),
         seed=1,
         max_visits=8,
         use_gymnasium=False,
@@ -149,6 +150,7 @@ class EpiCare(gym.Env):
         self.disease_cost_range = disease_cost_range
         self.symptom_modulation_range = symptom_modulation_range
         self.symptom_std_range = symptom_std_range
+        self.baseline_symptom_range = baseline_symptom_range
         self.remission_reward = remission_reward
         self.remission_prob_range = remission_prob_range
         self.max_visits = max_visits
@@ -157,7 +159,7 @@ class EpiCare(gym.Env):
         self.treatment_affect_observation = treatment_affect_observation
         self.even_class_distribution = even_class_distribution
         self.treatment_cost_range = (1, max(1, (remission_reward / (2 * max_visits))))
-        self.num_symptoms_for_diease_range = (n_symptoms // 2, max(2, n_symptoms))
+        self.num_symptoms_for_disease_range = ((15 * n_symptoms) // 16, n_symptoms)
         self.num_diseases_for_treatment_range = (1, max(2, n_diseases // 8))
 
         # Step tracking
@@ -227,7 +229,15 @@ class EpiCare(gym.Env):
 
         for i in range(self.n_diseases):
             effective_treatments = []
-            num_symptoms_for_disease = rng.randint(*self.num_symptoms_for_diease_range)
+            if (
+                self.num_symptoms_for_disease_range[0]
+                != self.num_symptoms_for_disease_range[1]
+            ):
+                num_symptoms_for_disease = rng.randint(
+                    *self.num_symptoms_for_disease_range
+                )
+            else:
+                num_symptoms_for_disease = self.num_symptoms_for_disease_range[0]
             symptoms_for_disease = rng.choice(
                 self.n_symptoms, size=num_symptoms_for_disease, replace=False
             )
@@ -285,7 +295,7 @@ class EpiCare(gym.Env):
             else self.time_to_remission
         )
         reward += self.remission_reward
-        self.current_symptoms = np.zeros(self.n_symptoms)  # Reset symptoms
+        self.current_symptoms = self.sample_symptoms()
         return (
             self.current_symptoms,
             reward,
@@ -334,6 +344,10 @@ class EpiCare(gym.Env):
         self.visit_number += 1
         reward = 0  # Reset step reward
 
+        # If action is not integer
+        # if not isinstance(action, int):
+        #    action = action.argmax()
+
         # Handle treatment cost
         treatment = self.treatments[f"Treatment_{action}"]
         treatment_cost = treatment["base_cost"]
@@ -372,7 +386,11 @@ class EpiCare(gym.Env):
 
     def sample_symptoms(self):
         # Baseline symptoms for a healthy individual
-        baseline_symptom_level = np.random.uniform(0, 0.3, self.n_symptoms)
+        baseline_symptom_level = np.random.uniform(
+            self.baseline_symptom_range[0],
+            self.baseline_symptom_range[1],
+            self.n_symptoms,
+        )
 
         if self.current_disease == "Remission":
             return (
