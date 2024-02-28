@@ -56,7 +56,7 @@ class TrainConfig:
     # whether to use deterministic actor
     iql_deterministic: bool = False
     # total gradient updates during training
-    max_timesteps: int = int(2.5e5)
+    max_timesteps: int = int(5e5)
     # maximum size of the replay buffer
     buffer_size: int = 2_000_000
     # training batch size
@@ -100,7 +100,7 @@ class TrainConfig:
     def update_params(self, params: Dict[str, Any]) -> "TrainConfig":
         for key, value in params.items():
             setattr(self, key, value)
-        self.dataset_path = f"./data/15_out_16/train_seed_{self.env_seed}.hdf5"
+        self.dataset_path = f"./data/hard/train_seed_{self.env_seed}.hdf5"
         self.name = f"{self.name}-{self.env}-{self.seed}-{self.env_seed}-{str(uuid.uuid4())[:8]}"
         if self.checkpoints_path is not None:
             self.checkpoints_path = os.path.join(self.checkpoints_path, self.name)

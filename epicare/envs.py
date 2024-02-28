@@ -129,10 +129,11 @@ class EpiCare(gym.Env):
         n_symptoms=16,
         disease_cost_range=(1, 10),
         symptom_modulation_range=(-0.5, 0.25),
-        symptom_std_range=(0.10, 0.30),
+        symptom_std_range=(0.3, 0.4),
+        symptom_mean_range=(0.4, 0.6),
         remission_reward=64,
         remission_prob_range=(0.8, 1.0),
-        baseline_symptom_range=(0.0, 0.3),
+        baseline_symptom_range=(0.0, 0.1),
         seed=1,
         max_visits=8,
         use_gymnasium=False,
@@ -150,6 +151,7 @@ class EpiCare(gym.Env):
         self.disease_cost_range = disease_cost_range
         self.symptom_modulation_range = symptom_modulation_range
         self.symptom_std_range = symptom_std_range
+        self.symptom_mean_range = symptom_mean_range
         self.baseline_symptom_range = baseline_symptom_range
         self.remission_reward = remission_reward
         self.remission_prob_range = remission_prob_range
@@ -159,7 +161,6 @@ class EpiCare(gym.Env):
         self.treatment_affect_observation = treatment_affect_observation
         self.even_class_distribution = even_class_distribution
         self.treatment_cost_range = (1, max(1, (remission_reward / (2 * max_visits))))
-        self.num_symptoms_for_disease_range = ((15 * n_symptoms) // 16, n_symptoms)
         self.num_diseases_for_treatment_range = (1, max(2, n_diseases // 8))
 
         # Step tracking
@@ -223,39 +224,42 @@ class EpiCare(gym.Env):
             self.transition_matrix, self.communicating_classes, even_class_distribution
         )
 
+    def generate_orthogonal_matrix(self, n, rng):
+        A = rng.normal(0, 1, (n, n))
+        Q, R = np.linalg.qr(A)
+        return Q
+
     def generate_diseases(self, rng):
-        self.diseases = {}  # Initialize the dictionary
+        self.diseases = {}
         all_treatments = set(range(self.n_treatments))  # Set of all treatments
 
         for i in range(self.n_diseases):
-            effective_treatments = []
-            if (
-                self.num_symptoms_for_disease_range[0]
-                != self.num_symptoms_for_disease_range[1]
-            ):
-                num_symptoms_for_disease = rng.randint(
-                    *self.num_symptoms_for_disease_range
-                )
-            else:
-                num_symptoms_for_disease = self.num_symptoms_for_disease_range[0]
-            symptoms_for_disease = rng.choice(
-                self.n_symptoms, size=num_symptoms_for_disease, replace=False
+            means = rng.uniform(
+                self.symptom_mean_range[0],
+                self.symptom_mean_range[1],
+                size=self.n_symptoms,
             )
-
-            means = rng.uniform(0.3, 0.7, size=num_symptoms_for_disease)
             std_devs = rng.uniform(
                 self.symptom_std_range[0],
                 self.symptom_std_range[1],
-                size=num_symptoms_for_disease,
+                size=self.n_symptoms,
             )
-            symptom_distributions = list(zip(means, std_devs))
+            std_devs_sorted = np.sort(std_devs)[::-1]
+            P = self.generate_orthogonal_matrix(self.n_symptoms, rng)
+            Sigma = P @ np.diag(std_devs_sorted**2) @ P.T  # Covariance matrix]
+
+            # Check if Sigma is symmetric
+            assert np.allclose(Sigma, Sigma.T)
+            # Check if Sigma is positive semi-definite
+            assert np.all(np.linalg.eigvals(Sigma) >= 0)
 
             base_cost = rng.uniform(*self.disease_cost_range)
 
             self.diseases[f"Disease_{i}"] = {
-                "symptoms": symptoms_for_disease,
-                "treatments": effective_treatments,
-                "symptom_distributions": symptom_distributions,
+                "symptoms": self.n_symptoms,
+                "treatments": [],
+                "symptom_means": means,
+                "symptom_covariances": Sigma,
                 "remission_probs": dict(),
                 "base_cost": base_cost,
             }
@@ -396,26 +400,21 @@ class EpiCare(gym.Env):
             return (
                 baseline_symptom_level  # Mimic healthy individual with baseline noise
             )
+        else:
+            symptom_means = self.diseases[self.current_disease]["symptom_means"]
+            symptom_covariances = self.diseases[self.current_disease][
+                "symptom_covariances"
+            ]
 
-        symptom_values = baseline_symptom_level.copy()  # Start with baseline symptoms
+            # Sample values from a multivariate normal distribution
+            symptom_values = np.random.multivariate_normal(
+                symptom_means, symptom_covariances
+            )
+            symptom_values = np.clip(
+                symptom_values, 0, 1
+            )  # Ensure values are within valid range
 
-        symptoms_for_disease = self.diseases[self.current_disease]["symptoms"]
-        symptom_distributions = self.diseases[self.current_disease][
-            "symptom_distributions"
-        ]
-
-        for symptom, (mean, std_dev) in zip(
-            symptoms_for_disease, symptom_distributions
-        ):
-            sampled_value = np.random.normal(mean, std_dev)
-            symptom_values[
-                symptom
-            ] += sampled_value  # Add disease symptom on top of baseline
-        symptom_values = np.clip(
-            symptom_values, 0, 1
-        )  # Ensure values are within valid range
-
-        return symptom_values
+            return symptom_values
 
     def generate_treatments(self, rng):
         treatments = {}

@@ -13,8 +13,6 @@ with tqdm(total=len(seeds) * 2) as pbar:
             # Initialize environment
             env = EpiCare(seed=seed)
 
-            print(env.num_symptoms_for_disease_range)
-
             # Choose the policy type here based on your needs
             policy = ClinicalTrial(env)
 
