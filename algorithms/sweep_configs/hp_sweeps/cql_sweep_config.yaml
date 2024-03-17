@@ -29,4 +29,8 @@ parameters:
     distribution: log_uniform_values
     max: 10.0
     min: 0.1
+  frame_stack:
+    values:
+      - 1
+      - 8
 program: cql.py

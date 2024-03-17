@@ -47,7 +47,7 @@ class TrainConfig:
     target_update_period: int = 1  # Frequency of target nets updates
     cql_n_actions: int = 10  # Number of sampled actions
     cql_importance_sample: bool = True  # Use importance sampling
-    cql_lagrange: bool = False  # Use Lagrange version of CQL
+    cql_lagrange: bool = True  # Use Lagrange version of CQL
     cql_target_action_gap: float = 10.0  # Action gap
     cql_temp: float = 1.0  # CQL temperature
     cql_alpha: float = 10.0  # Minimal Q weight
@@ -68,9 +68,9 @@ class TrainConfig:
     group: str = "CQL-EpiCare"  # wandb group name
     name: str = "CQL"  # wandb run name
     env_seed: int = 1  # Environment seed
-    temperature: float = 0.18  # Temperature for Gumbel-Softmax
+    temperature: float = 4.3  # Temperature for Gumbel-Softmax
     num_checkpoints: int = 32  # Number of checkpoints to save
-    frame_stack: int = 1  # Number of frames to stack
+    frame_stack: int = 8  # Number of frames to stack
 
     # Update the parameters with the parameters of the sweep
     def update_params(self, params: Dict[str, Any]) -> "TrainConfig":
@@ -246,16 +246,24 @@ def wandb_init(config: dict) -> None:
 
 @torch.no_grad()
 def eval_actor(
-    env: gym.Env, actor: nn.Module, device: str, n_episodes: int, seed: int
+    env: gym.Env,
+    actor: nn.Module,
+    device: str,
+    n_episodes: int,
+    seed: int,
+    frame_stack: int,
 ) -> np.ndarray:
     env.seed(seed)
     actor.eval()
     episode_rewards = []
     for _ in range(n_episodes):
+        state_history = np.zeros((frame_stack, env.observation_space.shape[0]))
         state, done = env.reset(), False
         episode_reward = 0.0
         while not done:
-            action = actor.act(state, device)
+            state_history = np.roll(state_history, shift=1, axis=0)
+            state_history[0] = state
+            action = actor.act(state_history, device=device)
             # Convert back from one-hot encoding
             action = np.argmax(action)
             state, reward, done, _ = env.step(action)
@@ -880,7 +888,7 @@ def load_custom_dataset(config: TrainConfig) -> Dict[str, np.ndarray]:
 def train(config: TrainConfig):
     env = gym.make(config.env, seed=config.env_seed)
 
-    state_dim = env.observation_space.shape[0]
+    state_dim = env.observation_space.shape[0] * config.frame_stack
     action_dim = env.action_space.n
 
     dataset = load_custom_dataset(config)
@@ -910,10 +918,11 @@ def train(config: TrainConfig):
         action_dim,
         config.buffer_size,
         config.device,
+        frame_stack=config.frame_stack,
     )
     replay_buffer.preprocess_dataset(dataset)
 
-    if config.num_checkpoints > 0:
+    if config.num_checkpoints != None:
         print(f"Checkpoints path: {config.checkpoints_path}")
         os.makedirs(config.checkpoints_path, exist_ok=True)
         with open(os.path.join(config.checkpoints_path, "config.yaml"), "w") as f:
@@ -1001,6 +1010,7 @@ def train(config: TrainConfig):
                 device=config.device,
                 n_episodes=config.n_episodes,
                 seed=config.seed,
+                frame_stack=config.frame_stack,
             )
             eval_score_mean = eval_scores.mean()
             eval_score_std = eval_scores.std()
@@ -1022,7 +1032,7 @@ def train(config: TrainConfig):
                 step=trainer.total_it,
             )
 
-        if config.num_checkpoints > 0:
+        if config.num_checkpoints is not None:
             if (t + 1) % (config.max_timesteps // config.num_checkpoints) == 0:
                 checkpoint_num = (t + 1) // (
                     config.max_timesteps // config.num_checkpoints

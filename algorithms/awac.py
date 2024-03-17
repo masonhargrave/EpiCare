@@ -36,16 +36,16 @@ class TrainConfig:
     # actor and critic hidden dim
     hidden_dim: int = 256
     # actor and critic learning rate
-    learning_rate: float = 3e-4
+    learning_rate: float = 1e-4
     # discount factor
     gamma: float = 1.0
     # coefficient for the talambrget critic Polyak's update
     tau: float = 5e-3
     # awac actor loss temperature, controlling balance
     # between behaviour cloning and Q-value maximization
-    awac_lambda: float = 0.25
+    awac_lambda: float = 1.0
     # total number of gradient updated during training
-    num_train_ops: int = 100_000
+    num_train_ops: int = 200_000
     # training batch size
     batch_size: int = 256
     # maximum size of the replay buffer
@@ -71,9 +71,11 @@ class TrainConfig:
     # environment seed
     env_seed: int = 1
     # Gumbel softmax temperature
-    temperature: float = 1.0
+    temperature: float = 1.7
     # number of checkpoints to save
     num_checkpoints: int = 32
+    # frame stacking memory
+    frame_stack: int = 1
 
     sweep_config: Optional[dict] = field(default=None)
 
@@ -81,7 +83,7 @@ class TrainConfig:
     def update_params(self, params: Dict[str, Any]) -> "TrainConfig":
         for key, value in params.items():
             setattr(self, key, value)
-        self.dataset_path = f"./data/train_seed_{self.env_seed}.hdf5"
+        self.dataset_path = f"./data/hard/train_seed_{self.env_seed}.hdf5"
         self.name = f"{self.name}-{self.env_name}-{self.seed}-{self.env_seed}-{str(uuid.uuid4())[:8]}"
         if self.checkpoints_path is not None:
             self.checkpoints_path = os.path.join(self.checkpoints_path, self.name)
@@ -95,12 +97,17 @@ class ReplayBuffer:
         action_dim: int,
         buffer_size: int,
         device: str = "cpu",
+        frame_stack: int = 1,
     ):
         self._buffer_size = buffer_size
         self._pointer = 0
         self._size = 0
+        self._frame_stack = frame_stack
 
         self._states = torch.zeros(
+            (buffer_size, state_dim), dtype=torch.float32, device=device
+        )
+        self._next_states = torch.zeros(
             (buffer_size, state_dim), dtype=torch.float32, device=device
         )
         self._actions = torch.zeros(
@@ -109,15 +116,13 @@ class ReplayBuffer:
         self._rewards = torch.zeros(
             (buffer_size, 1), dtype=torch.float32, device=device
         )
-        self._next_states = torch.zeros(
-            (buffer_size, state_dim), dtype=torch.float32, device=device
-        )
         self._dones = torch.zeros((buffer_size, 1), dtype=torch.float32, device=device)
         self._device = device
 
     def _to_tensor(self, data: np.ndarray) -> torch.Tensor:
         return torch.tensor(data, dtype=torch.float32, device=self._device)
 
+    # Loads data in d4rl format, i.e. from Dict[str, np.array].
     def preprocess_dataset(self, data: Dict[str, np.ndarray]):
         if self._size != 0:
             raise ValueError("Trying to load data into non-empty replay buffer")
@@ -130,20 +135,45 @@ class ReplayBuffer:
         if len(data["actions"].shape) == 1:
             # One-hot encode the actions if they are not already
             print("One-hot encoding actions")
+            print(f"Actions shape: {self._actions.shape}")
             actions = np.eye(self._actions.shape[1])[data["actions"].astype(int)]
+            data["actions"] = actions
         else:
             # Actions are already in the correct shape
             print("Actions are already one-hot encoded")
             actions = data["actions"]
-        self._states[:n_transitions] = self._to_tensor(data["observations"])
-        self._actions[:n_transitions] = self._to_tensor(actions)
+        self._actions[:n_transitions] = self._to_tensor(data["actions"])
         self._rewards[:n_transitions] = self._to_tensor(data["rewards"][..., None])
-        self._next_states[:n_transitions] = self._to_tensor(data["next_observations"])
         self._dones[:n_transitions] = self._to_tensor(data["terminals"][..., None])
         self._size += n_transitions
         self._pointer = min(self._size, n_transitions)
 
         print(f"Dataset size: {n_transitions}")
+
+        # Frame stack the states
+        frame_stacked_states = torch.zeros(
+            (self._frame_stack,) + data["observations"].shape
+        )
+        frame_stacked_next_states = torch.zeros_like(frame_stacked_states)
+
+        boundaries = [0] + [i + 1 for i, x in enumerate(self._dones.squeeze()) if x]
+        observations = torch.tensor(data["observations"], dtype=torch.float32)
+        next_observations = torch.tensor(data["next_observations"], dtype=torch.float32)
+        for start, end in zip(boundaries[:-1], boundaries[1:]):
+            for i in range(start, end):
+                for j in range(i, min(i + self._frame_stack, end)):
+                    frame_stacked_states[j - i, j] = observations[i, ...]
+                    frame_stacked_next_states[j - i, j] = next_observations[i, ...]
+
+        frame_stacked_states = frame_stacked_states.moveaxis(0, 1).to(self._device)
+        frame_stacked_next_states = frame_stacked_next_states.moveaxis(0, 1).to(
+            self._device
+        )
+
+        self._states[:n_transitions] = frame_stacked_states.reshape(n_transitions, -1)
+        self._next_states[:n_transitions] = frame_stacked_next_states.reshape(
+            n_transitions, -1
+        )
 
     def sample(self, batch_size: int) -> TensorBatch:
         indices = np.random.randint(0, min(self._size, self._pointer), size=batch_size)
@@ -193,7 +223,10 @@ class Actor(nn.Module):
 
     @torch.no_grad()
     def act(self, state: np.ndarray, device: str) -> np.ndarray:
-        state_t = torch.tensor(state[None], dtype=torch.float32, device=device)
+        # print("state shape: ", state.shape)
+        state_flattened = state.flatten()[None, :]
+        state_t = torch.tensor(state_flattened, dtype=torch.float32, device=device)
+        # print("state_t shape: ", state_t.shape)
         logits = self._mlp(state_t)
         if self._mlp.training:
             action_t = torch.argmax(logits, dim=-1)
@@ -414,16 +447,24 @@ def wrap_env(
 
 @torch.no_grad()
 def eval_actor(
-    env: gym.Env, actor: Actor, device: str, n_episodes: int, seed: int
+    env: gym.Env,
+    actor: nn.Module,
+    device: str,
+    n_episodes: int,
+    seed: int,
+    frame_stack: int,
 ) -> np.ndarray:
     env.seed(seed)
     actor.eval()
     episode_rewards = []
     for _ in range(n_episodes):
+        state_history = np.zeros((frame_stack, env.observation_space.shape[0]))
         state, done = env.reset(), False
         episode_reward = 0.0
         while not done:
-            action = actor.act(state, device)
+            state_history = np.roll(state_history, shift=1, axis=0)
+            state_history[0] = state
+            action = actor.act(state_history, device=device)
             # Convert back from one-hot encoding
             action = np.argmax(action)
             state, reward, done, _ = env.step(action)
@@ -472,7 +513,8 @@ def wandb_init(config: dict) -> None:
 def train(config: TrainConfig):
     env = gym.make(config.env_name, seed=config.env_seed)
     set_seed(config.seed, env, deterministic_torch=config.deterministic_torch)
-    state_dim = env.observation_space.shape[0]
+    state_dim = env.observation_space.shape[0] * config.frame_stack
+    # print("state_dim: ", state_dim)
     action_dim = env.action_space.n
     dataset = load_custom_dataset(config)
 
@@ -492,6 +534,7 @@ def train(config: TrainConfig):
         action_dim,
         config.buffer_size,
         config.device,
+        frame_stack=config.frame_stack,
     )
     replay_buffer.preprocess_dataset(dataset)
 
@@ -541,7 +584,12 @@ def train(config: TrainConfig):
         wandb.log(update_result, step=t)
         if (t + 1) % config.eval_frequency == 0:
             eval_scores = eval_actor(
-                env, actor, config.device, config.n_test_episodes, config.test_seed
+                env,
+                actor,
+                config.device,
+                config.n_test_episodes,
+                config.test_seed,
+                frame_stack=config.frame_stack,
             )
 
             normalized_scores_mean = env.get_normalized_score(eval_scores) * 100.0
@@ -571,7 +619,7 @@ def train(config: TrainConfig):
 
 
 if __name__ == "__main__":
-    with open("./sweep_configs/all_data_sweeps/awac_final_config.yaml", "r") as f:
+    with open("./sweep_configs/hp_sweeps/awac_sweep_config.yaml", "r") as f:
         sweep_config = yaml.load(f, Loader=yaml.FullLoader)
 
     # Start a new wandb run

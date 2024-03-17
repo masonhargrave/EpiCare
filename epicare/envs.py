@@ -126,11 +126,11 @@ class EpiCare(gym.Env):
         self,
         n_diseases=16,
         n_treatments=16,
-        n_symptoms=16,
+        n_symptoms=8,
         disease_cost_range=(1, 10),
-        symptom_modulation_range=(-0.5, 0.25),
-        symptom_std_range=(0.3, 0.4),
-        symptom_mean_range=(0.4, 0.6),
+        symptom_modulation_range=(-1.0, 0.5),
+        symptom_std_range=(0.5, 1.0),
+        symptom_mean_range=(0, 1),
         remission_reward=64,
         remission_prob_range=(0.8, 1.0),
         baseline_symptom_range=(0.0, 0.1),
@@ -246,7 +246,7 @@ class EpiCare(gym.Env):
             )
             std_devs_sorted = np.sort(std_devs)[::-1]
             P = self.generate_orthogonal_matrix(self.n_symptoms, rng)
-            Sigma = P @ np.diag(std_devs_sorted**2) @ P.T  # Covariance matrix]
+            Sigma = P @ np.diag(std_devs_sorted**2) @ P.T  # Covariance matrix
 
             # Check if Sigma is symmetric
             assert np.allclose(Sigma, Sigma.T)
@@ -330,12 +330,8 @@ class EpiCare(gym.Env):
             self.reward_components["state_based"] -= disease_cost
 
         # Fluctuate symptoms based on disease distributions and then adjust them based on treatment effects
-        self.current_symptoms = self.sample_symptoms()
-        if self.treatment_affect_observation:
-            for symptom, change in treatment["affected_symptoms"].items():
-                self.current_symptoms[symptom] += change
+        self.current_symptoms = self.sample_symptoms(mod=treatment["treatment_effects"])
 
-        self.current_symptoms = np.clip(self.current_symptoms, 0, 1)
         if self.use_symptom_rewards:
             symptom_cost = (self.current_symptoms.sum() / self.n_symptoms) * (
                 self.remission_reward / (2 * self.max_visits)
@@ -351,6 +347,10 @@ class EpiCare(gym.Env):
         # If action is not integer
         # if not isinstance(action, int):
         #    action = action.argmax()
+
+        if not isinstance(action, (int, np.integer)):
+            if len(action) == len(self.treatments):
+                action = action.argmax()
 
         # Handle treatment cost
         treatment = self.treatments[f"Treatment_{action}"]
@@ -388,7 +388,7 @@ class EpiCare(gym.Env):
             },
         )
 
-    def sample_symptoms(self):
+    def sample_symptoms(self, mod=0.0):
         # Baseline symptoms for a healthy individual
         baseline_symptom_level = np.random.uniform(
             self.baseline_symptom_range[0],
@@ -410,9 +410,12 @@ class EpiCare(gym.Env):
             symptom_values = np.random.multivariate_normal(
                 symptom_means, symptom_covariances
             )
-            symptom_values = np.clip(
-                symptom_values, 0, 1
-            )  # Ensure values are within valid range
+            symptom_values = (
+                np.tanh(symptom_values + mod) + 1
+            ) / 2  # Ensure values are within valid range
+
+            # Downsample to single decimal precision
+            symptom_values = np.round(symptom_values, 1)
 
             return symptom_values
 
@@ -433,9 +436,14 @@ class EpiCare(gym.Env):
                 for symptom in affected_symptoms
             }
 
+            # Convert to vector form for easier processing
+            symptom_changes = np.array(
+                [symptom_changes.get(i, 0.0) for i in range(self.n_symptoms)]
+            )
+
             treatments[f"Treatment_{i}"] = {
                 "base_cost": base_cost,
-                "affected_symptoms": symptom_changes,
+                "treatment_effects": symptom_changes,
             }
 
             # Generate treatment-specific transition modifiers for each disease transition
@@ -479,9 +487,25 @@ class EpiCare(gym.Env):
         return normalized_score
 
 
+# Create easy version of EpiCare environment
+class EpiCareEasy(EpiCare):
+    def __init__(self, seed=1):
+        super(EpiCareEasy, self).__init__(
+            seed=seed,
+            symptom_modulation_range=(-0.01, 0),
+            symptom_std_range=(0.0, 0.01),
+            remission_prob_range=(0.99, 1.0),
+        )
+
+
 from gym.envs.registration import register
 
 register(
     id="EpiCare-v0",  # Use the same ID when calling gym.make()
     entry_point="epicare.envs:EpiCare",  # Change this to the correct import path
+)
+
+register(
+    id="EpiCareEasy-v0",  # Use the same ID when calling gym.make()
+    entry_point="epicare.envs:EpiCareEasy",  # Change this to the correct import path
 )

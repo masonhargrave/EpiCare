@@ -88,11 +88,11 @@ class TrainConfig:
     # environment seed
     env_seed: int = 1
     # Gumbel softmax temperature
-    temperature: float = 0.2
+    temperature: float = 0.5
     # number of checkpoints
-    num_checkpoints: Optional[int] = 32
+    num_checkpoints: Optional[int] = 1
     # frame stacking memory
-    frame_stack: int = 1
+    frame_stack: int = 8
 
     sweep_config: Optional[dict] = field(default=None)
 
@@ -787,11 +787,13 @@ def train(config: TrainConfig):
 
 
 if __name__ == "__main__":
-    with open("./sweep_configs/hp_sweeps/iql_sweep_config.yaml", "r") as f:
+    with open(
+        "./sweep_configs/data_restriction_sweeps/iql_restriction_config.yaml", "r"
+    ) as f:
         sweep_config = yaml.load(f, Loader=yaml.FullLoader)
 
     # Start a new wandb run
-    run = wandb.init(config=sweep_config, group="IQL-EpiCare-sweep")
+    run = wandb.init(config=sweep_config, group="IQL-EpiCare-restrict")
 
     # Update the TrainConfig instance with parameters from wandb
     # This assumes that update_params will handle single value parameters correctly

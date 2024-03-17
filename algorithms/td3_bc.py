@@ -68,9 +68,11 @@ class TrainConfig:
     # environment seed
     env_seed: int = 1
     # temperature for Gumbell softmax
-    temperature: float = 0.5
+    temperature: float = 2.3
     # number of checkpoints to save
-    num_checkpoints: int = 32
+    num_checkpoints: int = 0
+    # frame stacking memory
+    frame_stack: int = 8
 
     sweep_config: Optional[dict] = field(default=None)
 
@@ -78,7 +80,7 @@ class TrainConfig:
     def update_params(self, params: Dict[str, Any]) -> "TrainConfig":
         for key, value in params.items():
             setattr(self, key, value)
-        self.dataset_path = f"./data/train_seed_{self.env_seed}.hdf5"
+        self.dataset_path = f"./data/hard/train_seed_{self.env_seed}.hdf5"
         self.name = f"{self.name}-{self.env}-{self.seed}-{self.env_seed}-{str(uuid.uuid4())[:8]}"
         if self.checkpoints_path is not None:
             self.checkpoints_path = os.path.join(self.checkpoints_path, self.name)
@@ -129,12 +131,17 @@ class ReplayBuffer:
         action_dim: int,
         buffer_size: int,
         device: str = "cpu",
+        frame_stack: int = 1,
     ):
         self._buffer_size = buffer_size
         self._pointer = 0
         self._size = 0
+        self._frame_stack = frame_stack
 
         self._states = torch.zeros(
+            (buffer_size, state_dim), dtype=torch.float32, device=device
+        )
+        self._next_states = torch.zeros(
             (buffer_size, state_dim), dtype=torch.float32, device=device
         )
         self._actions = torch.zeros(
@@ -142,9 +149,6 @@ class ReplayBuffer:
         )
         self._rewards = torch.zeros(
             (buffer_size, 1), dtype=torch.float32, device=device
-        )
-        self._next_states = torch.zeros(
-            (buffer_size, state_dim), dtype=torch.float32, device=device
         )
         self._dones = torch.zeros((buffer_size, 1), dtype=torch.float32, device=device)
         self._device = device
@@ -162,23 +166,50 @@ class ReplayBuffer:
                 "Replay buffer is smaller than the dataset you are trying to load!"
             )
         # Check if actions are already one-hot encoded
+        # print("LOOK HERE LOOK HERE LOOK HERE")
+        # print(data["actions"].shape)
         if len(data["actions"].shape) == 1:
             # One-hot encode the actions if they are not already
             print("One-hot encoding actions")
+            print(f"Actions shape: {self._actions.shape}")
             actions = np.eye(self._actions.shape[1])[data["actions"].astype(int)]
+            data["actions"] = actions
         else:
             # Actions are already in the correct shape
             print("Actions are already one-hot encoded")
             actions = data["actions"]
-        self._states[:n_transitions] = self._to_tensor(data["observations"])
-        self._actions[:n_transitions] = self._to_tensor(actions)
+        self._actions[:n_transitions] = self._to_tensor(data["actions"])
         self._rewards[:n_transitions] = self._to_tensor(data["rewards"][..., None])
-        self._next_states[:n_transitions] = self._to_tensor(data["next_observations"])
         self._dones[:n_transitions] = self._to_tensor(data["terminals"][..., None])
         self._size += n_transitions
         self._pointer = min(self._size, n_transitions)
 
         print(f"Dataset size: {n_transitions}")
+
+        # Frame stack the states
+        frame_stacked_states = torch.zeros(
+            (self._frame_stack,) + data["observations"].shape
+        )
+        frame_stacked_next_states = torch.zeros_like(frame_stacked_states)
+
+        boundaries = [0] + [i + 1 for i, x in enumerate(self._dones.squeeze()) if x]
+        observations = torch.tensor(data["observations"], dtype=torch.float32)
+        next_observations = torch.tensor(data["next_observations"], dtype=torch.float32)
+        for start, end in zip(boundaries[:-1], boundaries[1:]):
+            for i in range(start, end):
+                for j in range(i, min(i + self._frame_stack, end)):
+                    frame_stacked_states[j - i, j] = observations[i, ...]
+                    frame_stacked_next_states[j - i, j] = next_observations[i, ...]
+
+        frame_stacked_states = frame_stacked_states.moveaxis(0, 1).to(self._device)
+        frame_stacked_next_states = frame_stacked_next_states.moveaxis(0, 1).to(
+            self._device
+        )
+
+        self._states[:n_transitions] = frame_stacked_states.reshape(n_transitions, -1)
+        self._next_states[:n_transitions] = frame_stacked_next_states.reshape(
+            n_transitions, -1
+        )
 
     def sample(self, batch_size: int) -> TensorBatch:
         indices = np.random.randint(0, min(self._size, self._pointer), size=batch_size)
@@ -221,16 +252,26 @@ def wandb_init(config: dict) -> None:
 
 @torch.no_grad()
 def eval_actor(
-    env: gym.Env, actor: nn.Module, device: str, n_episodes: int, seed: int
+    env: gym.Env,
+    actor: nn.Module,
+    device: str,
+    n_episodes: int,
+    seed: int,
+    frame_stack: int,
 ) -> np.ndarray:
     env.seed(seed)
     actor.eval()
     episode_rewards = []
     for _ in range(n_episodes):
+        state_history = np.zeros((frame_stack, env.observation_space.shape[0]))
         state, done = env.reset(), False
         episode_reward = 0.0
         while not done:
-            action = actor.act(state, device)
+            state_history = np.roll(state_history, shift=1, axis=0)
+            state_history[0] = state
+            action = actor.act(state_history, device=device)
+            # Convert back from one-hot encoding
+            action = np.argmax(action)
             state, reward, done, _ = env.step(action)
             episode_reward += reward
         episode_rewards.append(episode_reward)
@@ -276,9 +317,8 @@ class Actor(nn.Module):
     @torch.no_grad()
     def act(self, state: np.ndarray, device: str = "cpu") -> int:
         state = torch.tensor(state.reshape(1, -1), device=device, dtype=torch.float32)
-        out = self.net(state)
-        out = F.gumbel_softmax(out, tau=self.temperature, hard=True)
-        return out.argmax().item()
+        out = self.net(state)[0].cpu().numpy()
+        return out
 
 
 class Critic(nn.Module):
@@ -462,7 +502,7 @@ def load_custom_dataset(config: TrainConfig) -> Dict[str, np.ndarray]:
 def train(config: TrainConfig):
     env = gym.make(config.env, seed=config.env_seed)
 
-    state_dim = env.observation_space.shape[0]
+    state_dim = env.observation_space.shape[0] * config.frame_stack
     action_dim = env.action_space.n
 
     dataset = load_custom_dataset(config)
@@ -484,6 +524,7 @@ def train(config: TrainConfig):
         action_dim,
         config.buffer_size,
         config.device,
+        frame_stack=config.frame_stack,
     )
     replay_buffer.preprocess_dataset(dataset)
 
@@ -550,6 +591,7 @@ def train(config: TrainConfig):
                 device=config.device,
                 n_episodes=config.n_episodes,
                 seed=config.seed,
+                frame_stack=config.frame_stack,
             )
             eval_score = eval_scores.mean()
             normalized_eval_score = env.get_normalized_score(eval_score) * 100.0

@@ -8,7 +8,7 @@ parameters:
       - 0
   num_critics:
     distribution: q_uniform
-    max: 250
+    max: 100
     min: 10
   eta:
     distribution: log_uniform_values
@@ -18,4 +18,8 @@ parameters:
     distribution: log_uniform_values
     max: 100.0
     min: 0.1
+  frame_stack:
+    values:
+      - 1
+      - 8
 program: edac.py

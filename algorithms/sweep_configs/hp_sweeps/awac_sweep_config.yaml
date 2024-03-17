@@ -18,4 +18,8 @@ parameters:
     distribution: log_uniform_values
     max: 3e-3
     min: 3e-5
+  frame_stack:
+    values:
+      - 1
+      - 8
 program: awac.py

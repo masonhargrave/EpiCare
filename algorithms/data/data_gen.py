@@ -16,7 +16,7 @@ with tqdm(total=len(seeds) * 2) as pbar:
             # Choose the policy type here based on your needs
             policy = ClinicalTrial(env)
 
-            num_episodes = 65536  # Number of episodes you want to run
+            num_episodes = 65536 * 2  # Number of episodes you want to run
             data = {
                 "observations": [],
                 "actions": [],
