@@ -4,23 +4,23 @@ import copy
 import os
 import random
 import uuid
-import h5py
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import gym
+import h5py
 import numpy as np
 import pyrallis
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import wandb
+import yaml
 from torch.distributions import Normal
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from epicare.envs import EpiCare
-import yaml
 
 TensorBatch = List[torch.Tensor]
 
@@ -737,6 +737,16 @@ def train(config: TrainConfig):
 
     wandb_init(asdict(config))
 
+    # Generate a list of training steps as close as possible to evenly spaced
+    # throughout the training process.
+    checkpoint_num = 0
+    checkpoint_steps = [
+        int(round(x))
+        for x in np.linspace(
+            config.max_timesteps - 1, 0, config.num_checkpoints or 0, endpoint=False
+        )
+    ]
+
     evaluations = []
     for t in range(int(config.max_timesteps)):
         batch = replay_buffer.sample(config.batch_size)
@@ -773,17 +783,15 @@ def train(config: TrainConfig):
                 step=trainer.total_it,
             )
 
-        if config.num_checkpoints is not None:
-            if (t + 1) % (config.max_timesteps // config.num_checkpoints) == 0:
-                checkpoint_num = (t + 1) // (
-                    config.max_timesteps // config.num_checkpoints
-                )
-                torch.save(
-                    trainer.state_dict(),
-                    os.path.join(
-                        config.checkpoints_path, f"checkpoint_{checkpoint_num}.pt"
-                    ),
-                )
+        if config.num_checkpoints and t == checkpoint_steps[-1]:
+            checkpoint_steps.pop()
+            torch.save(
+                trainer.state_dict(),
+                os.path.join(
+                    config.checkpoints_path, f"checkpoint_{checkpoint_num}.pt"
+                ),
+            )
+            checkpoint_num += 1
 
 
 if __name__ == "__main__":

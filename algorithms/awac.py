@@ -12,10 +12,10 @@ import pyrallis
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import wandb
 import yaml
 from tqdm import trange
 
-import wandb
 from epicare.envs import EpiCare
 
 TensorBatch = List[torch.Tensor]
@@ -577,6 +577,16 @@ def train(config: TrainConfig):
         with open(os.path.join(config.checkpoints_path, "config.yaml"), "w") as f:
             pyrallis.dump(config, f)
 
+    # Generate a list of training steps as close as possible to evenly spaced
+    # throughout the training process.
+    checkpoint_num = 0
+    checkpoint_steps = [
+        int(round(x))
+        for x in np.linspace(
+            config.num_train_ops - 1, 0, config.num_checkpoints, endpoint=False
+        )
+    ]
+
     for t in trange(config.num_train_ops, ncols=80):
         batch = replay_buffer.sample(config.batch_size)
         batch = [b.to(config.device) for b in batch]
@@ -604,17 +614,16 @@ def train(config: TrainConfig):
                 step=t,
             )
 
-        if config.num_checkpoints > 0:
-            if (t + 1) % (config.num_train_ops // config.num_checkpoints) == 0:
-                checkpoint_num = (t + 1) // (
-                    config.num_train_ops // config.num_checkpoints
-                )
-                torch.save(
-                    awac.state_dict(),
-                    os.path.join(
-                        config.checkpoints_path, f"checkpoint_{checkpoint_num}.pt"
-                    ),
-                )
+        if config.num_checkpoints and t == checkpoint_steps[-1]:
+            checkpoint_steps.pop()
+            torch.save(
+                awac.state_dict(),
+                os.path.join(
+                    config.checkpoints_path, f"checkpoint_{checkpoint_num}.pt"
+                ),
+            )
+            checkpoint_num += 1
+
     wandb.finish()
 
 
