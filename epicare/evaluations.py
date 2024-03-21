@@ -112,7 +112,7 @@ def run_episode(
         return total_reward, time_to_remission, steps, transitions
 
 
-def evaluate_online(model, env, eval_episodes, device, qvalue=None):
+def evaluate_online(model, env, eval_episodes, device, frame_stack, qvalue=None):
     model.eval()
     model.to(device)
     returns = []
@@ -120,6 +120,7 @@ def evaluate_online(model, env, eval_episodes, device, qvalue=None):
     times_to_remission = []
 
     for _ in tqdm(range(eval_episodes), desc="Evaluating"):
+        state_history = np.zeros((frame_stack, env.observation_space.shape[0]))
         state = env.reset()
         done = False
         episode_return = 0.0
@@ -127,7 +128,9 @@ def evaluate_online(model, env, eval_episodes, device, qvalue=None):
         remission_detected = False
 
         while not done:
-            action = model.act(np.array(state), device)
+            state_history = np.roll(state_history, shift=1, axis=0)
+            state_history[0] = state
+            action = model.act(state_history, device=device)
             # Check if acation is OHE anad convert to discrete action if so
             if isinstance(action, np.ndarray):
                 action = np.argmax(action)  # Convert to discrete action if necessary
@@ -365,10 +368,10 @@ def process_checkpoints(
             config = TrainConfig().update_params(config_dict)
             # Iterate over checkpoint files within the directory
             for i in range(1, num_checkpoints + 1):
-                if num_checkpoints == 1:
-                    checkpoint_file = "checkpoint.pt"
-                else:
-                    checkpoint_file = f"checkpoint_{i}.pt"
+                # if num_checkpoints == 1:
+                #    checkpoint_file = "checkpoint.pt"
+                # else:
+                checkpoint_file = f"checkpoint_{i-1}.pt"
                 fraction_of_steps = i / num_checkpoints
                 checkpoint_path = os.path.join(base_path, dir_name, checkpoint_file)
 
@@ -392,7 +395,9 @@ def process_checkpoints(
                     mean_remission_rate,
                     mean_time_to_remission,
                     std_time_to_remission,
-                ) = evaluate_online(actor, env, eval_episodes, config.device)
+                ) = evaluate_online(
+                    actor, env, eval_episodes, config.device, config.frame_stack
+                )
 
                 # Offline evaluation (if applicable)
                 offline_estimates = {}

@@ -33,7 +33,7 @@ LOG_STD_MAX = 2.0
 @dataclass
 class TrainConfig:
     # number of episodes
-    episodes_avail: int = 65536
+    episodes_avail: int = 65536 * 2
     # path to the dataset
     dataset_path: Optional[str] = "./data/train_seed_1.hdf5"
     # wandb project name

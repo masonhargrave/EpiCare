@@ -1054,7 +1054,9 @@ def train(config: TrainConfig):
 
 
 if __name__ == "__main__":
-    with open("./sweep_configs/hp_sweeps/cql_sweep_config.yaml", "r") as f:
+    with open(
+        "./sweep_configs/data_restriction_sweeps/cql_restriction_config.yaml", "r"
+    ) as f:
         sweep_config = yaml.load(f, Loader=yaml.FullLoader)
 
     # Start a new wandb run

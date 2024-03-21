@@ -8,7 +8,7 @@ import epicare.evaluations as evaluations
 
 def load_model(checkpoint_path, config):
     env = gym.make(config.env, seed=config.env_seed)
-    state_dim = env.observation_space.shape[0]
+    state_dim = env.observation_space.shape[0] * config.frame_stack
     action_dim = env.action_space.n
 
     # Choose the policy type based on the configuration

@@ -20,6 +20,7 @@ parameters:
       - 1
   episodes_avail:
     values:
+      - 131072
       - 65536
       - 32768
       - 16384
