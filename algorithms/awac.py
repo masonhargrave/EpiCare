@@ -70,8 +70,6 @@ class TrainConfig:
     device: str = "cuda"
     # environment seed
     env_seed: int = 1
-    # Gumbel softmax temperature
-    temperature: float = 1.7
     # number of checkpoints to save
     num_checkpoints: int = 32
     # frame stacking memory
@@ -196,7 +194,6 @@ class Actor(nn.Module):
         state_dim: int,
         action_dim: int,
         hidden_dim: int,
-        temperature: float = 1.0,
     ):
         super().__init__()
         self._mlp = nn.Sequential(
@@ -208,30 +205,25 @@ class Actor(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden_dim, action_dim),
         )
-        self.temperature = temperature
 
     def get_action_probabilities(self, state: torch.Tensor) -> torch.Tensor:
         logits = self._mlp(state)
-        action_probabilities = F.softmax(logits / self.temperature, dim=-1)
-        return action_probabilities
+        return F.softmax(logits, dim=-1)
 
     def forward(self, state: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         logits = self._mlp(state)
-        soft_action = F.gumbel_softmax(logits, tau=self.temperature, dim=-1)
-        log_prob = torch.log(soft_action + 1e-10)
-        return soft_action, log_prob
+        log_prob = F.log_softmax(logits, dim=-1)
+        action = F.one_hot(torch.argmax(logits, dim=-1), num_classes=logits.shape[-1])
+        return action, log_prob
 
     @torch.no_grad()
     def act(self, state: np.ndarray, device: str) -> np.ndarray:
-        # print("state shape: ", state.shape)
         state_flattened = state.flatten()[None, :]
         state_t = torch.tensor(state_flattened, dtype=torch.float32, device=device)
-        # print("state_t shape: ", state_t.shape)
         logits = self._mlp(state_t)
-        if self._mlp.training:
-            action_t = torch.argmax(logits, dim=-1)
-        else:
-            action_t = F.gumbel_softmax(logits, tau=self.temperature, hard=True)
+        action_t = torch.argmax(logits, dim=-1)
+        if not self._mlp.training:
+            action_t = F.one_hot(logits, num_classes=logits.shape[-1])
         action = action_t[0].cpu().numpy()
         return action
 

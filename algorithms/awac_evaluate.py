@@ -13,7 +13,7 @@ def load_model(checkpoint_path, config):
     action_dim = env.action_space.n
 
     # Initialize the actor model
-    actor = Actor(state_dim, action_dim, config.hidden_dim, config.temperature).to(
+    actor = Actor(state_dim, action_dim, config.hidden_dim).to(
         config.device
     )
     critic_1 = Critic(state_dim, action_dim, config.hidden_dim).to(config.device)
