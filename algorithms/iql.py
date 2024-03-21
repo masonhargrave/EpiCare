@@ -420,14 +420,12 @@ class Policy(nn.Module):
         hidden_dim: int = 256,
         n_hidden: int = 2,
         dropout: Optional[float] = None,
-        temperature: float = 1.0,
     ):
         super().__init__()
         self.net = MLP(
             [state_dim, *([hidden_dim] * n_hidden), act_dim],
             dropout=dropout,
         )
-        self.temperature = temperature
 
     def get_action_probabilities(self, obs: torch.Tensor) -> torch.Tensor:
         logits = self(obs)
@@ -438,8 +436,9 @@ class Policy(nn.Module):
 
     @torch.no_grad()
     def act(self, obs: torch.Tensor, device: str) -> np.ndarray:
-        logits = self(obs.to(device))
-        return torch.argmax(logits, -1).cpu().numpy().flatten()
+        obs = torch.tensor(obs.reshape(1, -1), device=device, dtype=torch.float32)
+        action = self(obs)[0].cpu().numpy()
+        return action
 
 
 class TwinQ(nn.Module):
@@ -663,7 +662,6 @@ def train(config: TrainConfig):
             state_dim,
             action_dim,
             dropout=config.actor_dropout,
-            temperature=config.temperature,
         )
     ).to(config.device)
     v_optimizer = torch.optim.Adam(v_network.parameters(), lr=config.vf_lr)

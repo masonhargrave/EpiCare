@@ -16,10 +16,6 @@ parameters:
       - 3.0
       - 6.0
       - 10.0
-  temperature:
-    distribution: log_uniform_values
-    max: 10.0
-    min: 0.1
   actor_dropout:
     values:
       - 0.0
