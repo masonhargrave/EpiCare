@@ -436,6 +436,11 @@ class Policy(nn.Module):
     def forward(self, obs: torch.Tensor) -> Normal:
         return self.net(obs)
 
+    @torch.no_grad()
+    def act(self, obs: torch.Tensor, device: str) -> np.ndarray:
+        logits = self(obs.to(device))
+        return torch.argmax(logits, -1).cpu().numpy().flatten()
+
 
 class TwinQ(nn.Module):
     def __init__(
