@@ -1,7 +1,7 @@
 import argparse
 import torch
 import gym
-from iql import StochasticPolicy, DeterministicPolicy, wrap_env, TrainConfig, TwinQ
+from iql import Policy, wrap_env, TrainConfig, TwinQ
 
 import epicare.evaluations as evaluations
 
@@ -12,15 +12,12 @@ def load_model(checkpoint_path, config):
     action_dim = env.action_space.n
 
     # Choose the policy type based on the configuration
-    if config.iql_deterministic:
-        actor = DeterministicPolicy(state_dim, action_dim).to(config.device)
-    else:
-        actor = StochasticPolicy(
-            state_dim,
-            action_dim,
-            temperature=config.temperature,
-            dropout=config.actor_dropout,
-        ).to(config.device)
+    actor = Policy(
+        state_dim,
+        action_dim,
+        temperature=config.temperature,
+        dropout=config.actor_dropout,
+    ).to(config.device)
 
     critic = TwinQ(state_dim, action_dim).to(config.device)
 

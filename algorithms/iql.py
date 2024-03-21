@@ -53,8 +53,6 @@ class TrainConfig:
     beta: float = 3.0
     # coefficient for asymmetric critic loss
     iql_tau: float = 0.9
-    # whether to use deterministic actor
-    iql_deterministic: bool = False
     # total gradient updates during training
     max_timesteps: int = int(5e5)
     # maximum size of the replay buffer
@@ -87,8 +85,6 @@ class TrainConfig:
     device: str = "cuda"
     # environment seed
     env_seed: int = 1
-    # Gumbel softmax temperature
-    temperature: float = 0.5
     # number of checkpoints
     num_checkpoints: Optional[int] = 1
     # frame stacking memory
@@ -416,7 +412,7 @@ class MLP(nn.Module):
         return self.net(x)
 
 
-class StochasticPolicy(nn.Module):
+class Policy(nn.Module):
     def __init__(
         self,
         state_dim: int,
@@ -433,49 +429,12 @@ class StochasticPolicy(nn.Module):
         )
         self.temperature = temperature
 
-        print("Stochastic policy")
-
     def get_action_probabilities(self, obs: torch.Tensor) -> torch.Tensor:
-        logits = self.net(obs)
-        return F.softmax(logits + self.temperature * np.euler_gamma, dim=-1)
+        logits = self(obs)
+        return F.softmax(logits, dim=-1)
 
     def forward(self, obs: torch.Tensor) -> Normal:
-        # Gumbel softmax
-        logits = self.net(obs)
-        return F.gumbel_softmax(logits, tau=self.temperature, hard=True)
-
-    @torch.no_grad()
-    def act(self, state: np.ndarray, device: str = "cpu"):
-        state = torch.tensor(state.reshape(1, -1), device=device, dtype=torch.float32)
-        action = self(state)[0].cpu().numpy()
-        return action
-
-
-class DeterministicPolicy(nn.Module):
-    def __init__(
-        self,
-        state_dim: int,
-        act_dim: int,
-        hidden_dim: int = 256,
-        n_hidden: int = 2,
-        dropout: Optional[float] = None,
-    ):
-        super().__init__()
-        self.net = MLP(
-            [state_dim, *([hidden_dim] * n_hidden), act_dim],
-            output_activation_fn=nn.Tanh,
-            dropout=dropout,
-        )
-
-        print("Deterministic policy")
-
-    def forward(self, obs: torch.Tensor) -> torch.Tensor:
         return self.net(obs)
-
-    @torch.no_grad()
-    def act(self, state: np.ndarray, device: str = "cpu"):
-        state = torch.tensor(state.reshape(1, -1), device=device, dtype=torch.float32)
-        return state.cpu().data.numpy().flatten()
 
 
 class TwinQ(nn.Module):
@@ -587,7 +546,8 @@ class ImplicitQLearning:
         elif torch.is_tensor(policy_out):
             if policy_out.shape != actions.shape:
                 raise RuntimeError("Actions shape missmatch")
-            bc_losses = torch.sum((policy_out - actions) ** 2, dim=1)
+            log_probs = F.log_softmax(policy_out, dim=-1)
+            bc_losses = -torch.sum(log_probs * actions, dim=1)
         else:
             raise NotImplementedError
         policy_loss = torch.mean(exp_adv * bc_losses)
@@ -694,9 +654,7 @@ def train(config: TrainConfig):
     v_network = ValueFunction(state_dim).to(config.device)
     print("Initializing actor")
     actor = (
-        DeterministicPolicy(state_dim, action_dim, dropout=config.actor_dropout)
-        if config.iql_deterministic
-        else StochasticPolicy(
+        Policy(
             state_dim,
             action_dim,
             dropout=config.actor_dropout,
