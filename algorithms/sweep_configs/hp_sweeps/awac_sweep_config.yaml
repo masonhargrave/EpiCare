@@ -10,10 +10,6 @@ parameters:
     distribution: uniform
     max: 1.0
     min: 0.1
-  temperature:
-    distribution: log_uniform_values
-    max: 10.0
-    min: 0.01
   learning_rate:
     distribution: log_uniform_values
     max: 3e-3

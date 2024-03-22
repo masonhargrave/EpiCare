@@ -212,7 +212,7 @@ class Actor(nn.Module):
 
     def forward(self, state: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         logits = self._mlp(state)
-        log_prob = F.log_softmax(logits, dim=-1)
+        log_prob = torch.log(F.softmax(logits, dim=-1) + 1e-10)
         action = F.one_hot(torch.argmax(logits, dim=-1), num_classes=logits.shape[-1])
         return action, log_prob
 
@@ -223,7 +223,7 @@ class Actor(nn.Module):
         logits = self._mlp(state_t)
         action_t = torch.argmax(logits, dim=-1)
         if not self._mlp.training:
-            action_t = F.one_hot(logits, num_classes=logits.shape[-1])
+            action_t = F.one_hot(action_t, num_classes=logits.shape[-1])
         action = action_t[0].cpu().numpy()
         return action
 

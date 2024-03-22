@@ -38,13 +38,16 @@ class TrainConfig:
     n_episodes: int = 100  # How many episodes run during evaluation
     normalize: bool = True  # Normalize states
     normalize_reward: bool = False  # Normalize reward
-    num_checkpoints: int = 32  # Number of checkpoints to save
+    num_checkpoints: int = 0  # Number of checkpoints to save
     orthogonal_init: bool = True  # Orthogonal initialization
     qf_lr: float = 3e-05  # Critics learning rate
     q_n_hidden_layers: int = 3  # Number of hidden layers in Q networks
     reward_bias: float = -1.0  # Reward bias for normalization
     reward_scale: float = 5.0  # Reward scale for normalization
     seed: int = 0  # Sets Gym, PyTorch and Numpy seeds
+    name: str = "CQL"
+    project: str = "CQL-Benchmark"
+    group: str = "CQL-EpiCare"
 
     # Update the parameters with the parameters of the sweep
     def update_params(self, params: Dict[str, Any]) -> "TrainConfig":
@@ -131,10 +134,10 @@ class DiscreteCQL:
         with torch.no_grad():
             q1 = self.q1(state)
             q2 = self.q2(state)
-        return torch.min(q1, q2).argmax(dim=-1).cpu().numpy()
+        return torch.min(q1, q2).cpu().numpy()
 
-    def q_func(self, observations: torch.Tensor, actions: torch.Tensor):
-        return torch.min(self.q1(observations, actions), self.q2(observations, actions))
+    def q_func(self, observations: torch.Tensor):
+        return torch.min(self.q1(observations), self.q2(observations))
 
     def _dqn_loss(
         self,
@@ -144,6 +147,7 @@ class DiscreteCQL:
         rewards: torch.Tensor,
         terminals: torch.Tensor,
     ):
+        rewards, terminals = rewards.squeeze(), terminals.squeeze()
         q1_values = torch.sum(self.q1(observations) * actions, dim=-1)
         next_q1_values = self.q1(next_observations).argmax(dim=-1)
         pred_q1 = rewards + self.gamma * next_q1_values * (1 - terminals)
@@ -170,7 +174,7 @@ class DiscreteCQL:
         observations: torch.Tensor,
         actions: torch.Tensor,
     ):
-        values = self.q_func(observations, actions)
+        values = self.q_func(observations)
         logsumexp = torch.logsumexp(values, dim=1, keepdim=True)
         data_values = (values * actions).sum(dim=1, keepdim=True)
         return (logsumexp - data_values).mean()
@@ -454,7 +458,6 @@ def eval_actor(
     frame_stack: int,
 ) -> np.ndarray:
     env.seed(seed)
-    actor.eval()
     episode_rewards = []
     for _ in range(n_episodes):
         state_history = np.zeros((frame_stack, env.observation_space.shape[0]))
@@ -463,14 +466,12 @@ def eval_actor(
         while not done:
             state_history = np.roll(state_history, shift=1, axis=0)
             state_history[0] = state
-            action = actor.act(state_history, device=device)
+            action = actor.act(state_history.reshape(-1), device=device)
             # Convert back from one-hot encoding
             action = np.argmax(action)
             state, reward, done, _ = env.step(action)
             episode_reward += reward
         episode_rewards.append(episode_reward)
-
-    actor.train()
     return np.asarray(episode_rewards)
 
 
@@ -511,7 +512,7 @@ def train(config: TrainConfig):
     )
     replay_buffer.preprocess_dataset(dataset)
 
-    if config.num_checkpoints != None:
+    if config.num_checkpoints:
         print(f"Checkpoints path: {config.checkpoints_path}")
         os.makedirs(config.checkpoints_path, exist_ok=True)
         with open(os.path.join(config.checkpoints_path, "config.yaml"), "w") as f:
@@ -560,7 +561,7 @@ def train(config: TrainConfig):
     checkpoint_steps = [
         int(round(x))
         for x in np.linspace(
-            config.max_timesteps - 1, 0, config.num_checkpoints, endpoint=False
+            config.max_timesteps - 1, 0, config.num_checkpoints or 0, endpoint=False
         )
     ]
 
@@ -614,9 +615,7 @@ def train(config: TrainConfig):
 
 
 if __name__ == "__main__":
-    with open(
-        "./sweep_configs/data_restriction_sweeps/cql_restriction_config.yaml", "r"
-    ) as f:
+    with open("./sweep_configs/hp_sweeps/cql_sweep_config.yaml", "r") as f:
         sweep_config = yaml.load(f, Loader=yaml.FullLoader)
 
     # Start a new wandb run
