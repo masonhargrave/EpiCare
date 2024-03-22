@@ -1,7 +1,16 @@
+import functools
+
 import gym
 import numpy as np
 import scipy.linalg as la
+from scipy import stats
 from scipy.sparse.csgraph import connected_components
+
+
+def generate_orthogonal_matrix(n, rng):
+    A = rng.normal(0, 1, (n, n))
+    Q, R = np.linalg.qr(A)
+    return Q
 
 
 def get_communicating_classes(matrix):
@@ -133,6 +142,8 @@ class EpiCare(gym.Env):
         symptom_mean_range=(0, 1),
         remission_reward=64,
         remission_prob_range=(0.8, 1.0),
+        adverse_event_reward=-64,
+        adverse_event_threshold=0.999,
         baseline_symptom_range=(0.0, 0.1),
         seed=1,
         max_visits=8,
@@ -155,6 +166,8 @@ class EpiCare(gym.Env):
         self.baseline_symptom_range = baseline_symptom_range
         self.remission_reward = remission_reward
         self.remission_prob_range = remission_prob_range
+        self.adverse_event_reward = adverse_event_reward
+        self.adverse_event_threshold = adverse_event_threshold
         self.max_visits = max_visits
         self.use_symptom_rewards = use_symptom_rewards
         self.use_disease_rewards = use_disease_rewards
@@ -183,15 +196,19 @@ class EpiCare(gym.Env):
         self.n_diseases = n_diseases
         self.n_treatments = n_treatments
         self.n_symptoms = n_symptoms
-
         self.connection_probability = 1 / n_diseases
+
+        # Since symptom rewards are optional, set the reward multiplier to zero if it
+        # won't be used anyway.
+        self.symptom_reward_multiplier = (
+            self.remission_reward / (2 * self.max_visits * self.n_symptoms)
+            if self.use_symptom_rewards
+            else 0
+        )
 
         self.generate_diseases(rng)
         self.disease_list = list(self.diseases.keys())
         self.treatments = self.generate_treatments(rng)
-
-        self.current_disease = None
-        self.current_symptoms = np.zeros(n_symptoms)
         self.generate_transition_matrix(rng)
         self.compute_stationary_distribution(
             even_class_distribution=self.even_class_distribution
@@ -224,11 +241,6 @@ class EpiCare(gym.Env):
             self.transition_matrix, self.communicating_classes, even_class_distribution
         )
 
-    def generate_orthogonal_matrix(self, n, rng):
-        A = rng.normal(0, 1, (n, n))
-        Q, R = np.linalg.qr(A)
-        return Q
-
     def generate_diseases(self, rng):
         self.diseases = {}
         all_treatments = set(range(self.n_treatments))  # Set of all treatments
@@ -245,7 +257,7 @@ class EpiCare(gym.Env):
                 size=self.n_symptoms,
             )
             std_devs_sorted = np.sort(std_devs)[::-1]
-            P = self.generate_orthogonal_matrix(self.n_symptoms, rng)
+            P = generate_orthogonal_matrix(self.n_symptoms, rng)
             Sigma = P @ np.diag(std_devs_sorted**2) @ P.T  # Covariance matrix
 
             # Check if Sigma is symmetric
