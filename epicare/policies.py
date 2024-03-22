@@ -1,6 +1,21 @@
 import numpy as np
 
 
+def _marginal_instantaneous_expected_reward(env, treatment):
+    expected_value = 0.0
+    for d, disease in enumerate(env.diseases.keys()):
+        instantaneous_reward = env.expected_instantaneous_reward(disease, treatment)
+        expected_value += instantaneous_reward * env.stationary_distribution[d]
+    return expected_value
+
+
+def _q_star_values(env):
+    return {
+        treatment: _marginal_instantaneous_expected_reward(env, treatment)
+        for treatment in range(env.n_treatments)
+    }
+
+
 class StandardOfCare:
     """A state-agnostic greedy policy that selects the treatment with the highest remission probability."""
 
@@ -8,22 +23,7 @@ class StandardOfCare:
         self.env = env
         self.alpha = alpha  # Learning rate for updating estimates
         self.remission_reward = env.remission_reward
-        self.Q_values = self._initialize_Q_values()
-
-    def _initialize_Q_values(self):
-        # Initialize Q-values using the expected value across the population as a prior
-        Q_values = {}
-        for treatment in range(self.env.n_treatments):
-            expected_value = 0
-            cost = self.env.treatments[f"Treatment_{treatment}"]["base_cost"]
-            for d, disease in enumerate(self.env.diseases.values()):
-                remission_prob = disease["remission_probs"].get(treatment, 0)
-                expected_value += (
-                    remission_prob * self.remission_reward - cost
-                ) * self.env.stationary_distribution[d]
-            Q_values[treatment] = expected_value
-
-        return Q_values
+        self.reset()
 
     def get_treatment(self, current_disease=None, current_step=None):
         # Select the treatment with the highest Q-value
@@ -44,7 +44,7 @@ class StandardOfCare:
 
     def reset(self):
         # Reset Q-values to initial state
-        self.Q_values = self._initialize_Q_values()
+        self.Q_values = _q_star_values(self.env)
 
 
 class ClinicalTrial:
@@ -55,20 +55,7 @@ class ClinicalTrial:
         self.alpha = alpha  # Learning rate for updating estimates
         self.verbose = verbose
         self.remission_reward = env.remission_reward
-        self.Q_values = self._initialize_Q_values()
-
-    def _initialize_Q_values(self):
-        Q_values = {}
-        for treatment in range(self.env.n_treatments):
-            expected_value = 0
-            cost = self.env.treatments[f"Treatment_{treatment}"]["base_cost"]
-            for d, disease in enumerate(self.env.diseases.values()):
-                remission_prob = disease["remission_probs"].get(treatment, 0)
-                expected_value += (
-                    remission_prob * self.remission_reward - cost
-                ) * self.env.stationary_distribution[d]
-            Q_values[treatment] = expected_value
-        return Q_values
+        self.reset()
 
     def get_treatment(self, current_disease=None, current_step=None):
         available_treatments = list(self.Q_values.keys())
@@ -92,7 +79,7 @@ class ClinicalTrial:
         return probabilities
 
     def reset(self):
-        self.Q_values = self._initialize_Q_values()
+        self.Q_values = _q_star_values(self.env)
 
 
 class Random:
@@ -119,21 +106,12 @@ class Oracle:
         self.env = env  # The environment instance
         self.remission_reward = env.remission_reward
 
-    def select_action(self, current_disease):
-        # Check if the current disease is in remission
-        if current_disease == "Remission":
-            return None  # No action required
-
-        # Retrieve the disease's data from the environment
-        disease_info = self.env.diseases[current_disease]
-
-        # Find the expected reward of each treatment (remission probability * reward - cost)
-        expected_rewards = {}
-        for treatment, remission_prob in disease_info["remission_probs"].items():
-            cost = self.env.treatments[f"Treatment_{treatment}"]["base_cost"]
-            expected_rewards[treatment] = (
-                remission_prob * self.env.remission_reward - cost
-            )
+    def select_action(self, state):
+        # Calculate the expected reward for each treatment in this state.
+        expected_rewards = {
+            i: self.env.expected_instantaneous_reward(state, action)
+            for i, action in enumerate(self.env.treatments)
+        }
 
         # Find the treatment with the highest expected reward
         best_treatment = max(expected_rewards, key=expected_rewards.get)
