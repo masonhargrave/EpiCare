@@ -253,7 +253,9 @@ class EpiCare(gym.Env):
             # Check if Sigma is positive semi-definite
             assert np.all(np.linalg.eigvals(Sigma) >= 0)
 
-            base_cost = rng.uniform(*self.disease_cost_range)
+            base_cost = (
+                rng.uniform(*self.disease_cost_range) if self.use_disease_rewards else 0
+            )
 
             self.diseases[f"Disease_{i}"] = {
                 "symptoms": self.n_symptoms,
@@ -321,36 +323,20 @@ class EpiCare(gym.Env):
         self.current_disease = f"Disease_{new_disease_index}"
         self.current_disease_index = new_disease_index
 
-        disease_cost = 0
-        symptom_cost = 0
-
         # Deduct the base reward for the current disease from the total reward
-        if self.use_disease_rewards:
-            disease_cost = self.diseases[self.current_disease]["base_cost"]
-            self.reward_components["state_based"] -= disease_cost
+        disease_cost = self.diseases[self.current_disease]["base_cost"]
+        self.reward_components["state_based"] -= disease_cost
 
         # Fluctuate symptoms based on disease distributions and then adjust them based on treatment effects
         self.current_symptoms = self.sample_symptoms(mod=treatment["treatment_effects"])
 
-        if self.use_symptom_rewards:
-            symptom_cost = (self.current_symptoms.sum() / self.n_symptoms) * (
-                self.remission_reward / (2 * self.max_visits)
-            )
-            self.reward_components["symptom_based"] -= symptom_cost
-
-        return disease_cost, symptom_cost
+        symptom_cost = self.symptom_reward_multiplier * self.current_symptoms.sum()
+        self.reward_components["symptom_based"] -= symptom_cost
+        return -disease_cost - symptom_cost
 
     def step(self, action):
         self.visit_number += 1
         reward = 0  # Reset step reward
-
-        # If action is not integer
-        # if not isinstance(action, int):
-        #    action = action.argmax()
-
-        if not isinstance(action, (int, np.integer)):
-            if len(action) == len(self.treatments):
-                action = action.argmax()
 
         # Handle treatment cost
         treatment = self.treatments[f"Treatment_{action}"]
@@ -365,20 +351,20 @@ class EpiCare(gym.Env):
             return self.handle_remission(action, reward)
 
         # Handle disease transition and symptom changes
-        disease_cost, symptom_cost = self.apply_treatment_and_transition_disease(
-            action, treatment
-        )
-        if self.use_disease_rewards:
-            reward -= disease_cost
-        if self.use_symptom_rewards:
-            reward -= symptom_cost
+        reward += self.apply_treatment_and_transition_disease(action, treatment)
 
-        # Visits cutoff check
-        terminated = self.visit_number == self.max_visits
+        # Handle the other two types of termination: adverse events when any symptom is
+        # too severe, and reaching the maximum number of visits.
+        if self.current_symptoms.max() > self.adverse_event_threshold:
+            self.reward_components["adverse_event"] += self.adverse_event_reward
+            reward += self.adverse_event_reward
+            terminated = True
+        else:
+            terminated = self.visit_number == self.max_visits
 
-        # Combine observation and action, then return the step information
+        # Reduce the precision of symptom measurements and return as observations.
         return (
-            self.current_symptoms,
+            np.round(self.current_symptoms, 1),
             reward,
             terminated,
             {
@@ -389,16 +375,11 @@ class EpiCare(gym.Env):
         )
 
     def sample_symptoms(self, mod=0.0):
-        # Baseline symptoms for a healthy individual
-        baseline_symptom_level = np.random.uniform(
-            self.baseline_symptom_range[0],
-            self.baseline_symptom_range[1],
-            self.n_symptoms,
-        )
-
         if self.current_disease == "Remission":
-            return (
-                baseline_symptom_level  # Mimic healthy individual with baseline noise
+            return np.random.uniform(
+                self.baseline_symptom_range[0],
+                self.baseline_symptom_range[1],
+                self.n_symptoms,
             )
         else:
             symptom_means = self.diseases[self.current_disease]["symptom_means"]
@@ -413,9 +394,6 @@ class EpiCare(gym.Env):
             symptom_values = (
                 np.tanh(symptom_values + mod) + 1
             ) / 2  # Ensure values are within valid range
-
-            # Downsample to single decimal precision
-            symptom_values = np.round(symptom_values, 1)
 
             return symptom_values
 
@@ -467,6 +445,7 @@ class EpiCare(gym.Env):
             "state_based": 0,
             "treatment_based": 0,
             "symptom_based": 0,
+            "adverse_event": 0,
         }
         self.time_to_remission = -1  # -1 indicates no remission achieved
 
@@ -485,6 +464,57 @@ class EpiCare(gym.Env):
         max_possible_return = self.remission_reward
         normalized_score = np.mean(returns) / max_possible_return
         return normalized_score
+
+    def _adverse_event_probability(self, disease, treatment):
+        # The probability of an adverse event is the probability that the tanh'ed sum of
+        # the symptoms exceeds the threshold. Use the inverse tanh to find the bounds in
+        # the multivariate normal space, and use the CDF to find the probability that
+        # any symptom exceeds the threshold.
+        effect = self.treatments[f"Treatment_{treatment}"]["treatment_effects"]
+        threshold = np.arctanh(2 * self.adverse_event_threshold - 1)
+        mu = self.diseases[disease]["symptom_means"]
+        cov = self.diseases[disease]["symptom_covariances"]
+        p_ok = stats.multivariate_normal(mu, cov).cdf(threshold - effect)
+        return 1 - p_ok
+
+    def _adverse_event_probability_empirical(self, disease, treatment, N=1_000_000):
+        # Same as _adverse_event_probability, but uses an empirical estimate to
+        # double-check consistency.
+        effect = self.treatments[f"Treatment_{treatment}"]["treatment_effects"]
+        threshold = np.arctanh(2 * self.adverse_event_threshold - 1) - effect
+        mu = self.diseases[disease]["symptom_means"]
+        cov = self.diseases[disease]["symptom_covariances"]
+        return np.any(stats.multivariate_normal(mu, cov).rvs(N) > threshold, -1).mean()
+
+    def _expected_symptom_cost(self, disease):
+        # The expected symptom cost is the expected value of the sum of the symptoms,
+        # times a conversion factor that scales the symptom cost to the reward scale.
+        mean_symptom_sum = np.sum(self.diseases[disease]["symptom_means"])
+        return self.symptom_reward_multiplier * mean_symptom_sum
+
+    @functools.lru_cache(maxsize=None)
+    def expected_instantaneous_reward(self, disease, treatment):
+        """
+        Calculate the expected reward for an action in a given state. This is cached
+        because it's reasonably expensive and the baseline policies need to call it many
+        times in their setup.
+        """
+
+        # The remission reward has already been granted and you can't perform actions
+        # anymore because the state is terminal.
+        if disease == "Remission":
+            return 0.0
+
+        # Remission probability isn't defined for all states, so default to 0.
+        remission_prob = self.diseases[disease]["remission_probs"].get(treatment, 0)
+        adverse_prob = self._adverse_event_probability(disease, treatment)
+        return (
+            remission_prob * self.remission_reward
+            + adverse_prob * self.adverse_event_reward
+            - self.treatments[f"Treatment_{treatment}"]["base_cost"]
+            - self._expected_symptom_cost(disease)
+            - self.diseases[disease]["base_cost"]
+        )
 
 
 # Create easy version of EpiCare environment
