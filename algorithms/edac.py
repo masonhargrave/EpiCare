@@ -61,8 +61,6 @@ class TrainConfig:
     num_epochs: int = 500
     # number of gradient updates during one epoch
     num_updates_on_epoch: int = 1000
-    # whether to normalize reward (like in IQL)
-    normalize_reward: bool = False
     # number of episodes to run during evaluation
     eval_episodes: int = 100
     # evaluation frequency, will evaluate eval_every training steps
@@ -646,15 +644,6 @@ def return_reward_range(dataset, max_episode_steps):
     return min(returns), max(returns)
 
 
-def modify_reward(dataset, env_name, max_episode_steps=1000):
-    if any(s in env_name for s in ("halfcheetah", "hopper", "walker2d")):
-        min_ret, max_ret = return_reward_range(dataset, max_episode_steps)
-        dataset["rewards"] /= max_ret - min_ret
-        dataset["rewards"] *= max_episode_steps
-    elif "antmaze" in env_name:
-        dataset["rewards"] -= 1.0
-
-
 def load_custom_dataset(config: TrainConfig) -> Dict[str, np.ndarray]:
     # Load your custom dataset from an HDF5 file
     with h5py.File(config.dataset_path, "r") as dataset_file:
@@ -698,9 +687,6 @@ def train(config: TrainConfig):
     action_dim = eval_env.action_space.n
 
     dataset = load_custom_dataset(config)
-
-    if config.normalize_reward:
-        modify_reward(dataset, config.env_name)
 
     buffer = ReplayBuffer(
         state_dim=state_dim,

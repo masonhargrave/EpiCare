@@ -61,8 +61,6 @@ class TrainConfig:
     batch_size: int = 256
     # whether to normalize states
     normalize: bool = True
-    # whether to normalize reward (like in IQL)
-    normalize_reward: bool = False
     # V-critic function learning rate
     vf_lr: float = 3e-4
     # Q-critic learning rate
@@ -313,15 +311,6 @@ def return_reward_range(dataset, max_episode_steps):
     lengths.append(ep_len)  # but still keep track of number of steps
     assert sum(lengths) == len(dataset["rewards"])
     return min(returns), max(returns)
-
-
-def modify_reward(dataset, env_name, max_episode_steps=1000):
-    if any(s in env_name for s in ("halfcheetah", "hopper", "walker2d")):
-        min_ret, max_ret = return_reward_range(dataset, max_episode_steps)
-        dataset["rewards"] /= max_ret - min_ret
-        dataset["rewards"] *= max_episode_steps
-    elif "antmaze" in env_name:
-        dataset["rewards"] -= 1.0
 
 
 def load_custom_dataset(config: TrainConfig) -> Dict[str, np.ndarray]:
@@ -619,9 +608,6 @@ def train(config: TrainConfig):
     action_dim = env.action_space.n
 
     dataset = load_custom_dataset(config)
-
-    if config.normalize_reward:
-        modify_reward(dataset, config.env)
 
     if config.normalize:
         state_mean, state_std = compute_mean_std(dataset["observations"], eps=1e-3)

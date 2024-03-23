@@ -50,8 +50,6 @@ class TrainConfig:
     batch_size: int = 256
     # maximum size of the replay buffer
     buffer_size: int = 1_000_000
-    # whether to normalize reward (like in IQL)
-    normalize_reward: bool = False
     # evaluation frequency, will evaluate every eval_frequency
     # training steps
     eval_frequency: int = 1000
@@ -482,15 +480,6 @@ def return_reward_range(dataset, max_episode_steps):
     return min(returns), max(returns)
 
 
-def modify_reward(dataset, env_name, max_episode_steps=1000):
-    if any(s in env_name for s in ("halfcheetah", "hopper", "walker2d")):
-        min_ret, max_ret = return_reward_range(dataset, max_episode_steps)
-        dataset["rewards"] /= max_ret - min_ret
-        dataset["rewards"] *= max_episode_steps
-    elif "antmaze" in env_name:
-        dataset["rewards"] -= 1.0
-
-
 def wandb_init(config: dict) -> None:
     wandb.init(
         config=config,
@@ -509,9 +498,6 @@ def train(config: TrainConfig):
     # print("state_dim: ", state_dim)
     action_dim = env.action_space.n
     dataset = load_custom_dataset(config)
-
-    if config.normalize_reward:
-        modify_reward(dataset, config.env_name)
 
     state_mean, state_std = compute_mean_std(dataset["observations"], eps=1e-3)
     dataset["observations"] = normalize_states(

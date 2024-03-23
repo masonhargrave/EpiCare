@@ -37,13 +37,10 @@ class TrainConfig:
     max_timesteps: int = 80000  # Max time steps to run environment
     n_episodes: int = 100  # How many episodes run during evaluation
     normalize: bool = True  # Normalize states
-    normalize_reward: bool = False  # Normalize reward
     num_checkpoints: int = 0  # Number of checkpoints to save
     orthogonal_init: bool = True  # Orthogonal initialization
     qf_lr: float = 3e-05  # Critics learning rate
     q_n_hidden_layers: int = 3  # Number of hidden layers in Q networks
-    reward_bias: float = -1.0  # Reward bias for normalization
-    reward_scale: float = 5.0  # Reward scale for normalization
     seed: int = 0  # Sets Gym, PyTorch and Numpy seeds
     name: str = "CQL"
     project: str = "CQL-Benchmark"
@@ -278,20 +275,6 @@ def return_reward_range(dataset: Dict, max_episode_steps: int) -> Tuple[float, f
     return min(returns), max(returns)
 
 
-def modify_reward(
-    dataset: Dict,
-    env_name: str,
-    max_episode_steps: int = 1000,
-    reward_scale: float = 1.0,
-    reward_bias: float = 0.0,
-):
-    if any(s in env_name for s in ("halfcheetah", "hopper", "walker2d")):
-        min_ret, max_ret = return_reward_range(dataset, max_episode_steps)
-        dataset["rewards"] /= max_ret - min_ret
-        dataset["rewards"] *= max_episode_steps
-    dataset["rewards"] = dataset["rewards"] * reward_scale + reward_bias
-
-
 def compute_mean_std(states: np.ndarray, eps: float) -> Tuple[np.ndarray, np.ndarray]:
     mean = states.mean(0)
     std = states.std(0) + eps
@@ -482,14 +465,6 @@ def train(config: TrainConfig):
     action_dim = env.action_space.n
 
     dataset = load_custom_dataset(config)
-
-    if config.normalize_reward:
-        modify_reward(
-            dataset,
-            config.env,
-            reward_scale=config.reward_scale,
-            reward_bias=config.reward_bias,
-        )
 
     if config.normalize:
         state_mean, state_std = compute_mean_std(dataset["observations"], eps=1e-3)
