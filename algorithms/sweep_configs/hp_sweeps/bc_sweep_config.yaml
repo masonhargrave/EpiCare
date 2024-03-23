@@ -1,0 +1,15 @@
+method: random
+metric:
+  goal: maximize
+  name: normalized_score_mean
+parameters:
+  actor_lr:
+    values:
+      - 3e-4
+      - 1e-4
+      - 3e-5
+  frame_stack:
+    values:
+      - 1
+      - 8
+program: cql.py
