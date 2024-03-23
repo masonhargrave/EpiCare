@@ -9,16 +9,19 @@ parameters:
   alpha:
     values:
       - 1.0
-      - 2.0
       - 2.5
-      - 3.0
       - 4.0
   temperature:
-    distribution: log_uniform_values
-    max: 10.0
-    min: 0.01
+    values:
+      - 0.3
+      - 1.0
+      - 3.0
   frame_stack:
     values:
       - 1
       - 8
+  include_previous_action:
+    values:
+      - True
+      - False
 program: td3_bc.py

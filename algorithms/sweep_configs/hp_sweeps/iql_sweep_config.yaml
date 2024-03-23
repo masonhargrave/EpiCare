@@ -1,11 +1,8 @@
-method: random
+method: grid
 metric:
   goal: maximize
   name: normalized_score
 parameters:
-  num_checkpoints:
-    values:
-      - null
   iql_tau:
     values:
       - 0.5
@@ -24,4 +21,8 @@ parameters:
     values:
       - 1
       - 8
+  include_previous_action:
+    values:
+      - True
+      - False
 program: iql.py

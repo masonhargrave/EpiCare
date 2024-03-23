@@ -29,7 +29,7 @@ class TrainConfig:
     device: str = "cuda"
     env: str = "EpiCare-v0"  # OpenAI gym environment name
     env_seed: int = 1  # Environment seed
-    episodes_avail: int = 65536  # Number of episodes
+    episodes_avail: int = 65536 * 2  # Number of episodes
     eval_freq: int = 5000  # How often (time steps) we evaluate
     frame_stack: int = 8  # Number of frames to stack
     gamma: float = 1.0  # Discount factor
@@ -45,12 +45,17 @@ class TrainConfig:
     name: str = "CQL"
     project: str = "CQL-Benchmark"
     group: str = "CQL-EpiCare"
+    behavior_policy: str = "smart"  # Behavior policy for data collection
+    # include previous action in the observation
+    include_previous_action: bool = False
 
     # Update the parameters with the parameters of the sweep
     def update_params(self, params: Dict[str, Any]) -> "TrainConfig":
         for key, value in params.items():
             setattr(self, key, value)
-        self.dataset_path = f"./data/hard/train_seed_{self.env_seed}.hdf5"
+        self.dataset_path = (
+            f"./data/{self.behavior_policy}/train_seed_{self.env_seed}.hdf5"
+        )
         self.name = f"{self.name}-{self.env}-{self.seed}-{self.env_seed}-{str(uuid.uuid4())[:8]}"
         if self.checkpoints_path is not None:
             self.checkpoints_path = os.path.join(self.checkpoints_path, self.name)
@@ -315,11 +320,14 @@ class ReplayBuffer:
         buffer_size: int,
         device: str = "cpu",
         frame_stack: int = 1,
+        include_previous_action: bool = False,
     ):
         self._buffer_size = buffer_size
         self._pointer = 0
         self._size = 0
         self._frame_stack = frame_stack
+        self._prev_action = include_previous_action
+        self._state_dim = state_dim
 
         self._states = torch.zeros(
             (buffer_size, state_dim), dtype=torch.float32, device=device
@@ -387,10 +395,40 @@ class ReplayBuffer:
             self._device
         )
 
-        self._states[:n_transitions] = frame_stacked_states.reshape(n_transitions, -1)
-        self._next_states[:n_transitions] = frame_stacked_next_states.reshape(
+        if self._prev_action:
+            # Get the next action with zero for the terminal states
+            next_actions = torch.where(
+                self._dones[:n_transitions].bool(),
+                torch.zeros_like(self._actions[:n_transitions]),
+                self._actions[:n_transitions],
+            )
+            prev_actions = next_actions.roll(1, dims=0)
+            up_to = -self._actions.shape[1]
+            self._states[:n_transitions, up_to:] = prev_actions
+            self._next_states[:n_transitions, up_to:] = next_actions
+        else:
+            up_to = self._states.shape[1]
+
+        self._states[:n_transitions, :up_to] = frame_stacked_states.reshape(
             n_transitions, -1
         )
+        self._next_states[:n_transitions, :up_to] = frame_stacked_next_states.reshape(
+            n_transitions, -1
+        )
+
+    def sample(self, batch_size: int) -> TensorBatch:
+        indices = np.random.randint(0, min(self._size, self._pointer), size=batch_size)
+        states = self._states[indices]
+        actions = self._actions[indices]
+        rewards = self._rewards[indices]
+        next_states = self._next_states[indices]
+        dones = self._dones[indices]
+        return [states, actions, rewards, next_states, dones]
+
+    def add_transition(self):
+        # Use this method to add new data into the replay buffer during fine-tuning.
+        # I left it unimplemented since now we do not do fine-tuning.
+        raise NotImplementedError
 
     def sample(self, batch_size: int) -> TensorBatch:
         indices = np.random.randint(0, min(self._size, self._pointer), size=batch_size)
@@ -439,22 +477,38 @@ def eval_actor(
     n_episodes: int,
     seed: int,
     frame_stack: int,
+    include_previous_action: bool = False,
+    action_dim: int = 0,
 ) -> np.ndarray:
     env.seed(seed)
     episode_rewards = []
     for _ in range(n_episodes):
         state_history = np.zeros((frame_stack, env.observation_space.shape[0]))
+        prev_action = np.zeros((action_dim,))
         state, done = env.reset(), False
         episode_reward = 0.0
         while not done:
             state_history = np.roll(state_history, shift=1, axis=0)
             state_history[0] = state
-            action = actor.act(state_history.reshape(-1), device=device)
+
+            # Prepare the actor input depending on whether previous action is included
+            if include_previous_action:
+                state = np.concatenate((state_history.flatten(), prev_action))
+            else:
+                state = state_history.flatten()
+
+            action = actor.act(state, device=device)
             # Convert back from one-hot encoding
-            action = np.argmax(action)
-            state, reward, done, _ = env.step(action)
+            action_idx = np.argmax(action)
+            state, reward, done, _ = env.step(action_idx)
             episode_reward += reward
+
+            # Update prev_action for the next iteration
+            if include_previous_action:
+                prev_action = np.arange(action_dim) == action_idx
+
         episode_rewards.append(episode_reward)
+
     return np.asarray(episode_rewards)
 
 
@@ -462,6 +516,8 @@ def train(config: TrainConfig):
     env = gym.make(config.env, seed=config.env_seed)
 
     state_dim = env.observation_space.shape[0] * config.frame_stack
+    if config.include_previous_action:
+        state_dim += env.action_space.n
     action_dim = env.action_space.n
 
     dataset = load_custom_dataset(config)
@@ -484,6 +540,7 @@ def train(config: TrainConfig):
         config.buffer_size,
         config.device,
         frame_stack=config.frame_stack,
+        include_previous_action=config.include_previous_action,
     )
     replay_buffer.preprocess_dataset(dataset)
 
@@ -557,6 +614,8 @@ def train(config: TrainConfig):
                 n_episodes=config.n_episodes,
                 seed=config.seed,
                 frame_stack=config.frame_stack,
+                include_previous_action=config.include_previous_action,
+                action_dim=action_dim,
             )
             eval_score_mean = eval_scores.mean()
             eval_score_std = eval_scores.std()

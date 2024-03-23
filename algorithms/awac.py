@@ -36,7 +36,7 @@ class TrainConfig:
     # actor and critic hidden dim
     hidden_dim: int = 256
     # actor and critic learning rate
-    learning_rate: float = 1e-4
+    learning_rate: float = 3e-4
     # discount factor
     gamma: float = 1.0
     # coefficient for the talambrget critic Polyak's update
@@ -69,9 +69,13 @@ class TrainConfig:
     # environment seed
     env_seed: int = 1
     # number of checkpoints to save
-    num_checkpoints: int = 32
+    num_checkpoints: int = 0
     # frame stacking memory
     frame_stack: int = 1
+    # behavior policy
+    behavior_policy: str = "smart"
+    # include previous action in the observation
+    include_previous_action: bool = False
 
     sweep_config: Optional[dict] = field(default=None)
 
@@ -79,7 +83,9 @@ class TrainConfig:
     def update_params(self, params: Dict[str, Any]) -> "TrainConfig":
         for key, value in params.items():
             setattr(self, key, value)
-        self.dataset_path = f"./data/hard/train_seed_{self.env_seed}.hdf5"
+        self.dataset_path = (
+            f"./data/{self.behavior_policy}/train_seed_{self.env_seed}.hdf5"
+        )
         self.name = f"{self.name}-{self.env_name}-{self.seed}-{self.env_seed}-{str(uuid.uuid4())[:8]}"
         if self.checkpoints_path is not None:
             self.checkpoints_path = os.path.join(self.checkpoints_path, self.name)
@@ -94,11 +100,14 @@ class ReplayBuffer:
         buffer_size: int,
         device: str = "cpu",
         frame_stack: int = 1,
+        include_previous_action: bool = False,
     ):
         self._buffer_size = buffer_size
         self._pointer = 0
         self._size = 0
         self._frame_stack = frame_stack
+        self._prev_action = include_previous_action
+        self._state_dim = state_dim
 
         self._states = torch.zeros(
             (buffer_size, state_dim), dtype=torch.float32, device=device
@@ -166,8 +175,24 @@ class ReplayBuffer:
             self._device
         )
 
-        self._states[:n_transitions] = frame_stacked_states.reshape(n_transitions, -1)
-        self._next_states[:n_transitions] = frame_stacked_next_states.reshape(
+        if self._prev_action:
+            # Get the next action with zero for the terminal states
+            next_actions = torch.where(
+                self._dones[:n_transitions].bool(),
+                torch.zeros_like(self._actions[:n_transitions]),
+                self._actions[:n_transitions],
+            )
+            prev_actions = next_actions.roll(1, dims=0)
+            up_to = -self._actions.shape[1]
+            self._states[:n_transitions, up_to:] = prev_actions
+            self._next_states[:n_transitions, up_to:] = next_actions
+        else:
+            up_to = self._states.shape[1]
+
+        self._states[:n_transitions, :up_to] = frame_stacked_states.reshape(
+            n_transitions, -1
+        )
+        self._next_states[:n_transitions, :up_to] = frame_stacked_next_states.reshape(
             n_transitions, -1
         )
 
@@ -443,22 +468,37 @@ def eval_actor(
     n_episodes: int,
     seed: int,
     frame_stack: int,
+    include_previous_action: bool = False,
+    action_dim: int = 0,
 ) -> np.ndarray:
     env.seed(seed)
     actor.eval()
     episode_rewards = []
     for _ in range(n_episodes):
         state_history = np.zeros((frame_stack, env.observation_space.shape[0]))
+        prev_action = np.zeros((action_dim,))
         state, done = env.reset(), False
         episode_reward = 0.0
         while not done:
             state_history = np.roll(state_history, shift=1, axis=0)
             state_history[0] = state
-            action = actor.act(state_history, device=device)
+
+            # Prepare the actor input depending on whether previous action is included
+            if include_previous_action:
+                state = np.concatenate((state_history.flatten(), prev_action))
+            else:
+                state = state_history.flatten()
+
+            action = actor.act(state, device=device)
             # Convert back from one-hot encoding
-            action = np.argmax(action)
-            state, reward, done, _ = env.step(action)
+            action_idx = np.argmax(action)
+            state, reward, done, _ = env.step(action_idx)
             episode_reward += reward
+
+            # Update prev_action for the next iteration
+            if include_previous_action:
+                prev_action = np.arange(action_dim) == action_idx
+
         episode_rewards.append(episode_reward)
 
     actor.train()
@@ -495,7 +535,8 @@ def train(config: TrainConfig):
     env = gym.make(config.env_name, seed=config.env_seed)
     set_seed(config.seed, env, deterministic_torch=config.deterministic_torch)
     state_dim = env.observation_space.shape[0] * config.frame_stack
-    # print("state_dim: ", state_dim)
+    if config.include_previous_action:
+        state_dim += env.action_space.n
     action_dim = env.action_space.n
     dataset = load_custom_dataset(config)
 
@@ -513,6 +554,7 @@ def train(config: TrainConfig):
         config.buffer_size,
         config.device,
         frame_stack=config.frame_stack,
+        include_previous_action=config.include_previous_action,
     )
     replay_buffer.preprocess_dataset(dataset)
 
@@ -578,6 +620,7 @@ def train(config: TrainConfig):
                 config.n_test_episodes,
                 config.test_seed,
                 frame_stack=config.frame_stack,
+                include_previous_action=config.include_previous_action,
             )
 
             normalized_scores_mean = env.get_normalized_score(eval_scores) * 100.0
@@ -606,11 +649,11 @@ def train(config: TrainConfig):
 
 
 if __name__ == "__main__":
-    with open("./sweep_configs/all_data_sweeps/awac_final_config.yaml", "r") as f:
+    with open("./sweep_configs/hp_sweeps/awac_sweep_config.yaml", "r") as f:
         sweep_config = yaml.load(f, Loader=yaml.FullLoader)
 
     # Start a new wandb run
-    run = wandb.init(config=sweep_config, group="AWAC-EpiCare_final")
+    run = wandb.init(config=sweep_config, group="AWAC-EpiCare_sweep")
 
     # Update the TrainConfig instance with parameters from wandb
     # This assumes that update_params will handle single value parameters correctly

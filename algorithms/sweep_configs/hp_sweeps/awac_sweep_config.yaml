@@ -1,4 +1,4 @@
-method: random
+method: grid
 metric:
   goal: maximize
   name: normalized_scores_mean
@@ -7,15 +7,15 @@ parameters:
     values:
       - 0
   awac_lambda:
-    distribution: uniform
-    max: 1.0
-    min: 0.1
-  learning_rate:
-    distribution: log_uniform_values
-    max: 3e-3
-    min: 3e-5
+    values:
+      - 1.0
+      - 0.3
   frame_stack:
     values:
       - 1
       - 8
+  include_previous_action:
+    values:
+      - False
+      - True
 program: awac.py

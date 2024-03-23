@@ -7,19 +7,26 @@ parameters:
     values:
       - 0
   num_critics:
-    distribution: q_uniform
-    max: 100
-    min: 10
+    values:
+      - 10
+      - 55
+      - 100
   eta:
-    distribution: log_uniform_values
-    max: 1000.0
-    min: 0.01
+    values:
+      - 0.0
+      - 1.0
+      - 5.0
   temperature:
-    distribution: log_uniform_values
-    max: 100.0
-    min: 0.1
+    values:
+      - 0.25
+      - 1.0
+      - 4.0
   frame_stack:
     values:
       - 1
       - 8
+  include_previous_action:
+    values:
+      - True
+      - False
 program: edac.py

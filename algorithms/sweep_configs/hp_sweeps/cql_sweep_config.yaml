@@ -1,4 +1,4 @@
-method: random
+method: grid
 metric:
   goal: maximize
   name: normalized_score_mean
@@ -16,4 +16,8 @@ parameters:
     values:
       - 1
       - 8
+  include_previous_action:
+    values:
+      - True
+      - False
 program: cql.py
