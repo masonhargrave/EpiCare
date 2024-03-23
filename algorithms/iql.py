@@ -752,6 +752,8 @@ def train(config: TrainConfig):
                 n_episodes=config.n_episodes,
                 seed=config.seed,
                 frame_stack=config.frame_stack,
+                include_previous_action=config.include_previous_action,
+                action_dim=action_dim,
             )
             eval_score = eval_scores.mean()
             eval_score_std = eval_scores.std()

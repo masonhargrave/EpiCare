@@ -621,6 +621,7 @@ def train(config: TrainConfig):
                 config.test_seed,
                 frame_stack=config.frame_stack,
                 include_previous_action=config.include_previous_action,
+                action_dim=action_dim,
             )
 
             normalized_scores_mean = env.get_normalized_score(eval_scores) * 100.0

@@ -12,4 +12,8 @@ parameters:
     values:
       - 1
       - 8
+  include_previous_action:
+    values:
+      - True
+      - False
 program: cql.py
