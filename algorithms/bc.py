@@ -105,8 +105,9 @@ class Actor(nn.Module):
     @torch.no_grad()
     def act(self, state: np.ndarray, device: str = "cpu") -> int:
         state = torch.tensor(state.reshape(1, -1), device=device, dtype=torch.float32)
-        out = self.net(state)[0].cpu().numpy()
-        return out
+        logits = self.net(state)
+        action = torch.multinomial(F.softmax(logits), 1)
+        return np.arange(logits.shape[-1]) == action.item()
 
 
 class BehaviorCloning:
