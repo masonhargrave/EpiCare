@@ -28,7 +28,7 @@ class TrainConfig:
     device: str = "cuda"
     env: str = "EpiCare-v0"  # OpenAI gym environment name
     env_seed: int = 1  # Environment seed
-    episodes_avail: int = 65536  # Number of episodes
+    episodes_avail: int = 65536 * 2  # Number of episodes
     eval_freq: int = 5000  # How often (time steps) we evaluate
     frame_stack: int = 8  # Number of frames to stack
     actor_lr: float = 1e-4  # Learning rate for actor

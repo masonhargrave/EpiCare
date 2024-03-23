@@ -669,6 +669,7 @@ def train(config: TrainConfig):
         config.buffer_size,
         config.device,
         frame_stack=config.frame_stack,
+        include_previous_action=config.include_previous_action,
     )
     replay_buffer.preprocess_dataset(dataset)
 

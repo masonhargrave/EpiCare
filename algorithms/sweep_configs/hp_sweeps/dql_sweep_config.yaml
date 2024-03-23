@@ -3,11 +3,13 @@ metric:
   goal: maximize
   name: normalized_score_mean
 parameters:
-  actor_lr:
+  qf_lr:
     values:
-      - 3e-4
       - 1e-4
       - 3e-5
+  alpha:
+    values:
+      - 0.0
   frame_stack:
     values:
       - 1
@@ -16,4 +18,4 @@ parameters:
     values:
       - True
       - False
-program: bc.py
+program: cql.py

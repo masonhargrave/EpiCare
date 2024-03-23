@@ -1,0 +1,34 @@
+method: grid
+metric:
+  goal: maximize
+  name: normalized_score_mean
+parameters:
+  seed:
+    values:
+      - 1
+      - 2
+      - 3
+      - 4
+  env_seed:
+    values:
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
+      - 7
+      - 8
+  qf_lr:
+    values:
+      - 1e-4
+  alpha:
+    values:
+      - 0.0
+  frame_stack:
+    values:
+      - 8
+  include_previous_action:
+    values:
+      - False
+program: cql.py
