@@ -1,8 +1,9 @@
 import h5py
 import numpy as np
+from tqdm import tqdm
+
 from epicare.envs import EpiCare
 from epicare.policies import ClinicalTrial
-from tqdm import tqdm
 
 # Set range of seeds to generate data for
 seeds = range(1, 9)
@@ -27,29 +28,30 @@ with tqdm(total=len(seeds) * 2) as pbar:
             }
 
             for episode in range(num_episodes):
+                policy.reset()
                 obs = env.reset()
                 done = False
                 while not done:
-                    # Get the treatment probabilities from the policy
-                    treatment_probs = policy.get_treatment_probs(
-                        env.current_disease, env.visit_number
-                    )
-                    # Use the get_treatment method from the chosen policy
-                    action = policy.get_treatment(env.current_disease, env.visit_number)
+                    # Get the treatment probabilities from the policy for importance
+                    # sampling OPE methods, some of which need to know the probability
+                    # of the action the sampling policy chose.
+                    treatment_probs = policy.get_treatment_probs(obs)
+                    # Don't double-compute them, just sample from that distribution.
+                    action = np.random.choice(env.n_treatments, p=treatment_probs)
+                    # Step the environment using this action.
                     next_obs, reward, done, _ = env.step(action)
+                    # Also step the policy to update its internal state, even though
+                    # technically the clinical trial policy doesn't need to do this.
+                    policy.update(action, reward)
 
                     data["observations"].append(obs)
                     data["actions"].append(action)
-                    data["action_probabilities"].append(
-                        treatment_probs[action]
-                    )  # Store the probability of the chosen action
+                    data["action_probabilities"].append(treatment_probs[action])
                     data["rewards"].append(reward)
                     data["terminals"].append(done)
                     data["next_observations"].append(next_obs)
 
                     obs = next_obs  # Update the current observation
-
-                policy.reset()
 
             # Convert lists to numpy arrays
             for key in data:

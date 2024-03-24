@@ -16,114 +16,112 @@ def _q_star_values(env):
     }
 
 
-class StandardOfCare:
-    """A state-agnostic greedy policy that selects the treatment with the highest remission probability."""
-
-    def __init__(self, env, alpha=0.5):
+class BasePolicy:
+    def __init__(self, env):
         self.env = env
-        self.alpha = alpha  # Learning rate for updating estimates
-        self.remission_reward = env.remission_reward
         self.reset()
 
-    def get_treatment(self, current_disease=None, current_step=None):
-        # Select the treatment with the highest Q-value
-        treatment = max(self.Q_values, key=self.Q_values.get)
-        return treatment
+    def get_treatment_probs(self, observation):
+        """
+        Calculate the probability of each treatment given the current observation.
+        Overload this to create a stochastic policy, and the concrete treatment for each
+        step will be chosen from the returned distribution.
+        """
+        out = np.zeros(self.env.n_treatments)
+        out[self.get_treatment(observation)] = 1
+        return out
 
-    def update(self, treatment, reward):
-        # Update the Q-value for the chosen treatment based on the reward received
-        self.Q_values[treatment] = (1 - self.alpha) * self.Q_values[
-            treatment
-        ] + self.alpha * reward
-
-    def step(self, observation):
-        # Select a treatment based on the highest Q-value
-        treatment = self.get_treatment()
-
-        return treatment
-
-    def reset(self):
-        # Reset Q-values to initial state
-        self.Q_values = _q_star_values(self.env)
-
-
-class ClinicalTrial:
-    """Policy that samples actions in proportion to their Q-values, mimicking Thompson Sampling."""
-
-    def __init__(self, env, alpha=0.5, verbose=False):
-        self.env = env
-        self.alpha = alpha  # Learning rate for updating estimates
-        self.verbose = verbose
-        self.remission_reward = env.remission_reward
-        self.reset()
-
-    def get_treatment(self, current_disease=None, current_step=None):
-        available_treatments = list(self.Q_values.keys())
+    def get_treatment(self, observation):
+        """
+        Select a treatment given the current observation. Overload this to create a
+        deterministic policy, and treatment probabilities will automatically be one-hot
+        encoded from the output of this method.
+        """
         return np.random.choice(
-            available_treatments, p=self._normalize_Q_values(available_treatments)
+            self.env.n_treatments, p=self.get_treatment_probs(observation)
         )
 
-    def get_treatment_probs(self, current_disease=None, current_step=None):
-        available_treatments = list(self.Q_values.keys())
-        return self._normalize_Q_values(available_treatments)
-
-    def _normalize_Q_values(self, available_treatments):
-        """Enforce numerical stability by ensuring the max Q-value is 0
-        and variability in the actions by making sure the difference
-        between the max and min Q-values is ln(2)"""
-        Q_values = [self.Q_values[t] for t in available_treatments]
-        Q_values = Q_values - np.max(Q_values)
-        Q_values = (Q_values / min(Q_values)) * -np.log(8)
-        exp_Q_values = np.exp(Q_values)
-        probabilities = exp_Q_values / np.sum(exp_Q_values)
-        return probabilities
+    def update(self, treatment, reward):
+        """
+        Update the policy's internal state based on the treatment and reward received.
+        """
+        pass
 
     def reset(self):
-        self.Q_values = _q_star_values(self.env)
-
-
-class Random:
-    """Policy for Thompson sampling that probabilistically selects the treatment with the highest remission probability.
-    This is intended to imitate a Sequential Multiple Assignment Randomized Trial (SMART) .
-    """
-
-    def __init__(self, env, verbose=False):
-        self.env = env
-
-    def get_treatment(self, current_disease, current_step):
-        available_treatments = np.arange(self.env.n_treatments)
-        return np.random.choice(available_treatments)
-
-    def reset(self):
+        """
+        Reset the policy's per-episode internal state.
+        """
         pass
 
 
-class Oracle:
-    """A state-aware greedy policy that selects the treatment with the highest expected reward.
-    This is intended to represent a near-optimal policy."""
+class StandardOfCare(BasePolicy):
+    """
+    A state-agnostic greedy policy that selects the treatment with the highest remission probability.
+    """
 
-    def __init__(self, env):
-        self.env = env  # The environment instance
-        self.remission_reward = env.remission_reward
+    def __init__(self, env, alpha=0.5):
+        self.alpha = alpha  # Learning rate for updating estimates
+        super().__init__(env)
 
-    def select_action(self, state):
+    def get_treatment(self, observation):
+        # Select the treatment with the highest Q-value
+        return max(self.Q, key=self.Q.get)
+
+    def update(self, treatment, reward):
+        # Update the Q-value for the chosen treatment based on the reward received
+        self.Q[treatment] = (1 - self.alpha) * self.Q[treatment] + self.alpha * reward
+
+    def reset(self):
+        self.Q = _q_star_values(self.env)
+
+
+class ClinicalTrial(BasePolicy):
+    """
+    Policy that samples actions in proportion to their Q-values, mimicking Thompson Sampling.
+    """
+
+    def get_treatment_probs(self, observation):
+        return self.treatment_probs
+
+    def reset(self):
+        """
+        Set the fixed action probabilities of the policy based on the expected reward of
+        each state.
+
+        Since this is supposed to model a clinical trial, enforce sufficient exploration
+        by normalizing the probabilities to sum to 1 and have a ratio of 8 between the
+        most and least probable treatments.
+        """
+        Q_values = [q for q in _q_star_values(self.env).values()]
+        Q_values = Q_values - np.max(Q_values)
+        Q_values = (Q_values / min(Q_values)) * -np.log(8)
+        exp_Q_values = np.exp(Q_values)
+        self.treatment_probs = exp_Q_values / np.sum(exp_Q_values)
+
+
+class Random(BasePolicy):
+    """
+    Policy that selects treatments uniformly at random to present a semi worst-case
+    baseline.
+    """
+
+    def get_treatment_probs(self, observation):
+        return np.ones(self.env.n_treatments) / self.env.n_treatments
+
+
+class Oracle(BasePolicy):
+    """
+    A state-aware greedy policy that selects the treatment with the highest expected
+    reward given knowledge of the true underlying state. This is intended to represent a
+    near-optimal policy.
+    """
+
+    def get_treatment(self, observation):
         # Calculate the expected reward for each treatment in this state.
         expected_rewards = {
-            i: self.env.expected_instantaneous_reward(state, action)
+            i: self.env.expected_instantaneous_reward(self.env.current_disease, action)
             for i, action in enumerate(self.env.treatments)
         }
 
         # Find the treatment with the highest expected reward
-        best_treatment = max(expected_rewards, key=expected_rewards.get)
-
-        return best_treatment
-
-    def step(self, observation):
-        current_disease = (
-            self.env.current_disease
-        )  # Directly accessing the current disease state (which is "cheating")
-
-        # Select the action (treatment) with the highest remission probability
-        action = self.select_action(current_disease)
-
-        return action
+        return max(expected_rewards, key=expected_rewards.get)

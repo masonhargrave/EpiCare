@@ -11,13 +11,13 @@ import yaml
 from torch.nn.utils.rnn import pad_sequence
 from tqdm.auto import tqdm
 
-from epicare.policies import ClinicalTrial, Random, StandardOfCare
+from epicare.policies import BasePolicy
 from epicare.utils import get_cutoff, load_custom_dataset
 
 
 def run_episode(
     env,
-    policy,
+    policy: BasePolicy,
     policy_name,
     policy_stats=None,
     collect_series=False,
@@ -37,47 +37,25 @@ def run_episode(
     observations_collected = [observation]
     states_collected = [env.current_disease]
 
-    # Reset the policy at the start of each episode if it has a reset method
-    if hasattr(policy, "reset"):
-        policy.reset()
+    policy.reset()
 
     while not done:
         # Obtain the treatment decision from the policy
-        if isinstance(policy, (StandardOfCare, ClinicalTrial, Random)):
-            treatment = policy.get_treatment(
-                current_disease=env.current_disease, current_step=steps
-            )
-        else:
-            treatment = policy.step(observation)
-
-        if treatment is None:
-            if verbose:
-                print(
-                    f"Remission or no treatment at step {steps + 1}, \
-                      ending episode."
-                )
-            break
+        treatment = policy.get_treatment(observation)
 
         # Perform the action in the environment
         old_state = env.current_disease
         observation, reward, done, info = env.step(treatment)
-        reward *= 100 / 64
-        # If observations has an element with a negative value
-        if observation.min() < 0:
-            raise ValueError(f"Observation has negative values: {observation}")
+        policy.update(treatment, reward)
         new_state = env.current_disease
         total_reward += reward
         if verbose:
-            print(f"Step {step + 1}: Applied Treatment {treatment}, Reward {reward}")
+            print(f"Step {steps + 1}: Applied Treatment {treatment}, Reward {reward}")
 
         if collect_series:
             # Collect the series
             observations_collected.append(observation)
             states_collected.append(env.current_disease)
-
-        # If the policy has an update method, call it with the treatment and reward
-        if hasattr(policy, "update"):
-            policy.update(treatment, reward)
 
         # Check if remission was achieved and record the time step
         if info.get("remission", False):
