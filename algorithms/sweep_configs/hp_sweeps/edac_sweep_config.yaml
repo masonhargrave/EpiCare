@@ -1,4 +1,4 @@
-method: random
+method: grid
 metric:
   goal: maximize
   name: eval/normalized_score_mean
