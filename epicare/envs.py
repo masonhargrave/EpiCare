@@ -529,25 +529,9 @@ class EpiCare(gym.Env):
         )
 
 
-# Create easy version of EpiCare environment
-class EpiCareEasy(EpiCare):
-    def __init__(self, seed=1):
-        super(EpiCareEasy, self).__init__(
-            seed=seed,
-            symptom_modulation_range=(-0.01, 0),
-            symptom_std_range=(0.0, 0.01),
-            remission_prob_range=(0.99, 1.0),
-        )
-
-
 from gym.envs.registration import register
 
 register(
     id="EpiCare-v0",  # Use the same ID when calling gym.make()
     entry_point="epicare.envs:EpiCare",  # Change this to the correct import path
-)
-
-register(
-    id="EpiCareEasy-v0",  # Use the same ID when calling gym.make()
-    entry_point="epicare.envs:EpiCareEasy",  # Change this to the correct import path
 )
