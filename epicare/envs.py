@@ -3,18 +3,21 @@ import functools
 import gym
 import numpy as np
 import scipy.linalg as la
+from gym.envs.registration import register
 from scipy import stats
 from scipy.sparse.csgraph import connected_components
+from scipy.special import expit, logit
 
 
 def generate_orthogonal_matrix(n, rng):
+    "Generate a random orthogonal matrix of size n×n."
     A = rng.normal(0, 1, (n, n))
     Q, R = np.linalg.qr(A)
     return Q
 
 
 def get_communicating_classes(matrix):
-    """Finds the communicating classes in the Markov chain."""
+    "Find the communicating classes in the Markov chain."
     # Use scipy's connected_components to find the strongly connected components
     n_components, labels = connected_components(
         csgraph=matrix, directed=True, return_labels=True
@@ -29,7 +32,7 @@ def get_communicating_classes(matrix):
 
 
 def get_stationary_distribution_for_class(matrix, communicating_class):
-    """Finds the stationary distribution for a communicating class."""
+    "Find the stationary distribution for a communicating class."
     # Extract the submatrix corresponding to the communicating class
     submatrix = matrix[communicating_class, :][:, communicating_class]
 
@@ -56,7 +59,7 @@ def get_stationary_distribution_for_class(matrix, communicating_class):
 
 
 def combine_distributions(distributions, weights):
-    """Combine distributions weighted by the size of each class."""
+    "Combine distributions weighted by the size of each class."
     combined_distribution = np.zeros_like(distributions[0])
     for dist, weight in zip(distributions, weights):
         combined_distribution += dist * weight
@@ -64,7 +67,7 @@ def combine_distributions(distributions, weights):
 
 
 def analyze_markov_chain(matrix):
-    """Analyze the Markov chain to find the stationary distribution."""
+    "Analyze the Markov chain to find the stationary distribution."
     # Find the communicating classes
     classes = get_communicating_classes(matrix)
 
@@ -137,9 +140,9 @@ class EpiCare(gym.Env):
         n_treatments=16,
         n_symptoms=8,
         disease_cost_range=(1, 10),
-        symptom_modulation_range=(-1.0, 0.5),
-        symptom_std_range=(0.5, 1.0),
-        symptom_mean_range=(0, 1),
+        symptom_modulation_range=(-2.0, 1.0),
+        symptom_std_range=(1.0, 2.0),
+        symptom_mean_range=(0.0, 2.0),
         remission_reward=64,
         remission_prob_range=(0.8, 1.0),
         adverse_event_reward=-64,
@@ -403,9 +406,8 @@ class EpiCare(gym.Env):
             symptom_values = np.random.multivariate_normal(
                 symptom_means, symptom_covariances
             )
-            symptom_values = (
-                np.tanh(symptom_values + mod) + 1
-            ) / 2  # Ensure values are within valid range
+            # Add modulation and ensure values are within valid range
+            symptom_values = expit(symptom_values + mod)
 
             return symptom_values
 
@@ -431,14 +433,14 @@ class EpiCare(gym.Env):
                 [symptom_changes.get(i, 0.0) for i in range(self.n_symptoms)]
             )
 
-            treatments[f"Treatment_{i}"] = {
-                "base_cost": base_cost,
-                "treatment_effects": symptom_changes,
-            }
-
             # Generate treatment-specific transition modifiers for each disease transition
             transition_modifiers = rng.uniform(0.5, 1.5, size=self.n_diseases)
-            treatments[f"Treatment_{i}"]["transition_modifiers"] = transition_modifiers
+
+            treatments[f"Treatment_{i}"] = dict(
+                base_cost=base_cost,
+                treatment_effects=symptom_changes,
+                transition_modifiers=transition_modifiers,
+            )
         return treatments
 
     def reset(self, *, seed=None, options=None):
@@ -483,17 +485,17 @@ class EpiCare(gym.Env):
         # the multivariate normal space, and use the CDF to find the probability that
         # any symptom exceeds the threshold.
         effect = self.treatments[f"Treatment_{treatment}"]["treatment_effects"]
-        threshold = np.arctanh(2 * self.adverse_event_threshold - 1)
+        threshold = logit(self.adverse_event_threshold) - effect
         mu = self.diseases[disease]["symptom_means"]
         cov = self.diseases[disease]["symptom_covariances"]
-        p_ok = stats.multivariate_normal(mu, cov).cdf(threshold - effect)
+        p_ok = stats.multivariate_normal(mu, cov).cdf(threshold)
         return 1 - p_ok
 
     def _adverse_event_probability_empirical(self, disease, treatment, N=1_000_000):
         # Same as _adverse_event_probability, but uses an empirical estimate to
         # double-check consistency.
         effect = self.treatments[f"Treatment_{treatment}"]["treatment_effects"]
-        threshold = np.arctanh(2 * self.adverse_event_threshold - 1) - effect
+        threshold = logit(self.adverse_event_threshold) - effect
         mu = self.diseases[disease]["symptom_means"]
         cov = self.diseases[disease]["symptom_covariances"]
         return np.any(stats.multivariate_normal(mu, cov).rvs(N) > threshold, -1).mean()
@@ -528,8 +530,6 @@ class EpiCare(gym.Env):
             - self.diseases[disease]["base_cost"]
         )
 
-
-from gym.envs.registration import register
 
 register(
     id="EpiCare-v0",  # Use the same ID when calling gym.make()
