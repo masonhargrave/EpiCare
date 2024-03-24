@@ -8,7 +8,10 @@ from epicare.policies import ClinicalTrial
 # Set range of seeds to generate data for
 seeds = range(1, 9)
 
-with tqdm(total=len(seeds) * 2) as pbar:
+# Number of episodes you want to run
+num_episodes = 65536 * 2
+
+with tqdm(total=num_episodes * len(seeds) * 2) as pbar:
     for dataset in "train", "test":
         for seed in seeds:
             # Initialize environment
@@ -17,7 +20,6 @@ with tqdm(total=len(seeds) * 2) as pbar:
             # Choose the policy type here based on your needs
             policy = ClinicalTrial(env)
 
-            num_episodes = 65536 * 2  # Number of episodes you want to run
             data = {
                 "observations": [],
                 "actions": [],
@@ -53,6 +55,8 @@ with tqdm(total=len(seeds) * 2) as pbar:
 
                     obs = next_obs  # Update the current observation
 
+                pbar.update()
+
             # Convert lists to numpy arrays
             for key in data:
                 data[key] = np.array(data[key])
@@ -64,5 +68,3 @@ with tqdm(total=len(seeds) * 2) as pbar:
             with h5py.File(filename, "w") as f:
                 for key, value in data.items():
                     f.create_dataset(key, data=value)
-
-            pbar.update()
