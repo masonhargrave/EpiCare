@@ -118,7 +118,7 @@ def evaluate_online(model, env, eval_episodes, device, frame_stack, qvalue=None)
             state_history = np.roll(state_history, shift=1, axis=0)
             state_history[0] = state
             action = model.act(state_history, device=device)
-            # Check if acation is OHE anad convert to discrete action if so
+            # Check if action is OHE anad convert to discrete action if so
             if isinstance(action, np.ndarray):
                 action = np.argmax(action)  # Convert to discrete action if necessary
             state, reward, done, info = env.step(action)

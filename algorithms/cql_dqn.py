@@ -110,6 +110,26 @@ class FullyConnectedQFunction(nn.Module):
         return self.network(observations)
 
 
+class Policy(nn.Module):
+    def __init__(
+        self,
+        q1,
+        q2,
+        device: str = "cpu",
+    ):
+        super().__init__()
+        self.q1 = q1
+        self.q2 = q2
+        self.device = device
+
+    def act(self, state: np.ndarray, device: str) -> np.ndarray:
+        state = torch.tensor(state, dtype=torch.float32, device=device)
+        with torch.no_grad():
+            q1 = self.q1(state)
+            q2 = self.q2(state)
+        return torch.min(q1, q2).cpu().numpy()
+
+
 class DiscreteCQL:
     def __init__(
         self,
@@ -128,15 +148,8 @@ class DiscreteCQL:
         self.gamma = gamma
         self.alpha = alpha
         self.device = device
-
+        self.policy = Policy(q1, q2, device)
         self.total_it = 0
-
-    def act(self, state: np.ndarray, device: str) -> np.ndarray:
-        state = torch.tensor(state, dtype=torch.float32, device=device)
-        with torch.no_grad():
-            q1 = self.q1(state)
-            q2 = self.q2(state)
-        return torch.min(q1, q2).cpu().numpy()
 
     def q_func(self, observations: torch.Tensor):
         return torch.min(self.q1(observations), self.q2(observations))
@@ -481,6 +494,7 @@ def eval_actor(
     action_dim: int = 0,
 ) -> np.ndarray:
     env.seed(seed)
+    actor.eval()
     episode_rewards = []
     for _ in range(n_episodes):
         state_history = np.zeros((frame_stack, env.observation_space.shape[0]))
@@ -509,6 +523,7 @@ def eval_actor(
 
         episode_rewards.append(episode_reward)
 
+    actor.train()
     return np.asarray(episode_rewards)
 
 
@@ -570,7 +585,7 @@ def train(config: TrainConfig):
     print(f"Training CQL-DQN, Env: {config.env}, Seed: {seed}")
     print("---------------------------------------")
 
-    # Initialize actor
+    # Initialize trainer
     trainer = DiscreteCQL(
         q1,
         q1_optimizer,
@@ -609,7 +624,7 @@ def train(config: TrainConfig):
             print(f"Time steps: {t + 1}")
             eval_scores = eval_actor(
                 env,
-                trainer,
+                trainer.policy,
                 device=config.device,
                 n_episodes=config.n_episodes,
                 seed=config.seed,
