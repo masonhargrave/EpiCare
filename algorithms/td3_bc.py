@@ -676,11 +676,11 @@ def train(config: TrainConfig):
 
 
 if __name__ == "__main__":
-    with open("./sweep_configs/hp_sweeps/td3_bc_sweep_config.yaml", "r") as f:
+    with open("./sweep_configs/all_data_sweeps/td3_bc_final_config.yaml", "r") as f:
         sweep_config = yaml.load(f, Loader=yaml.FullLoader)
 
     # Start a new wandb run
-    run = wandb.init(config=sweep_config, group="TD3_BC-EpiCare_sweep")
+    run = wandb.init(config=sweep_config, group="TD3_BC-EpiCare_final")
 
     # Update the TrainConfig instance with parameters from wandb
     # This assumes that update_params will handle single value parameters correctly

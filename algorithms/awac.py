@@ -650,11 +650,11 @@ def train(config: TrainConfig):
 
 
 if __name__ == "__main__":
-    with open("./sweep_configs/hp_sweeps/awac_sweep_config.yaml", "r") as f:
+    with open("./sweep_configs/all_data_sweeps/awac_final_config.yaml", "r") as f:
         sweep_config = yaml.load(f, Loader=yaml.FullLoader)
 
     # Start a new wandb run
-    run = wandb.init(config=sweep_config, group="AWAC-EpiCare_sweep")
+    run = wandb.init(config=sweep_config, group="AWAC-EpiCare_final")
 
     # Update the TrainConfig instance with parameters from wandb
     # This assumes that update_params will handle single value parameters correctly

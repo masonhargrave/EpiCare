@@ -33,7 +33,7 @@ class TrainConfig:
     frame_stack: int = 8  # Number of frames to stack
     actor_lr: float = 1e-4  # Learning rate for actor
     load_model: str = ""  # Model load file name, "" doesn't load
-    max_timesteps: int = 80000  # Max time steps to run environment
+    max_timesteps: int = 200000  # Max time steps to run environment
     n_episodes: int = 100  # How many episodes run during evaluation
     normalize: bool = True  # Normalize states
     num_checkpoints: int = 0  # Number of checkpoints to save

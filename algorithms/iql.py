@@ -787,11 +787,11 @@ def train(config: TrainConfig):
 
 
 if __name__ == "__main__":
-    with open("./sweep_configs/hp_sweeps/iql_sweep_config.yaml", "r") as f:
+    with open("./sweep_configs/all_data_sweeps/iql_final_config.yaml", "r") as f:
         sweep_config = yaml.load(f, Loader=yaml.FullLoader)
 
     # Start a new wandb run
-    run = wandb.init(config=sweep_config, group="IQL-EpiCare-sweep")
+    run = wandb.init(config=sweep_config, group="IQL-EpiCare-final")
 
     # Update the TrainConfig instance with parameters from wandb
     # This assumes that update_params will handle single value parameters correctly
