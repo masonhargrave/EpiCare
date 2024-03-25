@@ -32,6 +32,7 @@ def run_episode(
     time_to_remission = (
         None  # Initialize as None, which will be updated if remission occurs
     )
+    had_adverse = False
 
     # For series collection
     observations_collected = [observation]
@@ -49,8 +50,10 @@ def run_episode(
         policy.update(treatment, reward)
         new_state = env.current_disease
         total_reward += reward
+        steps += 1
+
         if verbose:
-            print(f"Step {steps + 1}: Applied Treatment {treatment}, Reward {reward}")
+            print(f"Step {steps}: Applied Treatment {treatment}, Reward {reward}")
 
         if collect_series:
             # Collect the series
@@ -59,12 +62,16 @@ def run_episode(
 
         # Check if remission was achieved and record the time step
         if info.get("remission", False):
-            time_to_remission = steps + 1  # Plus one because steps start from 0
+            time_to_remission = steps
             if verbose:
-                print(f"Remission achieved at step {time_to_remission}")
-            break  # Optional: break if you want to stop the episode at remission
+                print(f"Remission achieved at step {steps}")
 
-        steps += 1
+        # Also log adverse events.
+        if info.get("adverse_event", False):
+            had_adverse = True
+            if verbose:
+                print(f"Adverse event detected at step {steps}")
+
         if old_state != new_state:
             transitions += 1
 
@@ -75,11 +82,13 @@ def run_episode(
                 "total_rewards": [],
                 "remission": [],
                 "times_to_remission": [],
+                "adverse_event": [],
             }
 
         policy_stats[policy_name]["total_rewards"].append(total_reward)
         if time_to_remission is not None:
             policy_stats[policy_name]["times_to_remission"].append(time_to_remission)
+        policy_stats[policy_name]["adverse_event"].append(1 if had_adverse else 0)
         policy_stats[policy_name]["remission"].append(
             1 if time_to_remission is not None else 0
         )

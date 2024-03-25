@@ -325,6 +325,7 @@ class EpiCare(gym.Env):
                 "treatment": action,
                 "disease_pre_treatment": self.current_disease,
                 "remission": True,
+                "adverse_event": False,
             },
         )
 
@@ -370,7 +371,8 @@ class EpiCare(gym.Env):
 
         # Handle the other two types of termination: adverse events when any symptom is
         # too severe, and reaching the maximum number of visits.
-        if self.current_symptoms.max() > self.adverse_event_threshold:
+        adverse_event = self.current_symptoms.max() > self.adverse_event_threshold
+        if adverse_event:
             self.reward_components["adverse_event"] += self.adverse_event_reward
             reward += self.adverse_event_reward
             terminated = True
@@ -386,6 +388,7 @@ class EpiCare(gym.Env):
                 "treatment": action,
                 "disease_pre_treatment": self.current_disease,
                 "remission": False,
+                "adverse_event": adverse_event,
             },
         )
 
