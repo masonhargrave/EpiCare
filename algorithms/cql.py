@@ -35,7 +35,7 @@ class TrainConfig:
     gamma: float = 1.0  # Discount factor
     load_model: str = ""  # Model load file name, "" doesn't load
     max_timesteps: int = 80000  # Max time steps to run environment
-    n_episodes: int = 100  # How many episodes run during evaluation
+    n_episodes: int = 1000  # How many episodes run during evaluation
     normalize: bool = True  # Normalize states
     num_checkpoints: int = 0  # Number of checkpoints to save
     orthogonal_init: bool = True  # Orthogonal initialization
