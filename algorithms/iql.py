@@ -17,10 +17,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import wandb
 import yaml
+from epicare.envs import EpiCare  # noqa: F401
 from torch.distributions import Normal
 from torch.optim.lr_scheduler import CosineAnnealingLR
-
-from epicare.envs import EpiCare
 
 TensorBatch = List[torch.Tensor]
 

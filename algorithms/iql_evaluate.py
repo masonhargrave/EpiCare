@@ -1,9 +1,10 @@
 import argparse
-import torch
-import gym
-from iql import Policy, wrap_env, TrainConfig, TwinQ
 
 import epicare.evaluations as evaluations
+import gym
+import torch
+
+from iql import Policy, TrainConfig, TwinQ, wrap_env
 
 
 def load_model(checkpoint_path, config):

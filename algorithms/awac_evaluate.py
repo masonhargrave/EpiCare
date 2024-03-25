@@ -1,10 +1,10 @@
 import argparse
 
+import epicare.evaluations as evaluations
 import gym
 import torch
-from awac import Actor, Critic, TrainConfig, wrap_env
 
-import epicare.evaluations as evaluations
+from awac import Actor, Critic, TrainConfig, wrap_env
 
 
 def load_model(checkpoint_path, config):
@@ -13,9 +13,7 @@ def load_model(checkpoint_path, config):
     action_dim = env.action_space.n
 
     # Initialize the actor model
-    actor = Actor(state_dim, action_dim, config.hidden_dim).to(
-        config.device
-    )
+    actor = Actor(state_dim, action_dim, config.hidden_dim).to(config.device)
     critic_1 = Critic(state_dim, action_dim, config.hidden_dim).to(config.device)
     critic_2 = Critic(state_dim, action_dim, config.hidden_dim).to(config.device)
 

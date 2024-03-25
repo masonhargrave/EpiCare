@@ -1,10 +1,10 @@
 import argparse
 
+import epicare.evaluations as evaluations
 import gym
 import torch
-from cql_sac import FullyConnectedQFunction, Policy, TrainConfig, wrap_env
 
-import epicare.evaluations as evaluations
+from cql_sac import FullyConnectedQFunction, Policy, TrainConfig, wrap_env
 
 
 def load_model(checkpoint_path, config):

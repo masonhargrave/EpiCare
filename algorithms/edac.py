@@ -17,10 +17,9 @@ import torch
 import torch.nn as nn
 import wandb
 import yaml
+from epicare.envs import EpiCare  # noqa: F401
 from torch.nn import functional as F
 from tqdm import trange
-
-from epicare.envs import EpiCare
 
 
 @dataclass

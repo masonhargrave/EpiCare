@@ -14,9 +14,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import wandb
 import yaml
+from epicare.envs import EpiCare  # noqa: F401
 from tqdm import trange
-
-from epicare.envs import EpiCare
 
 TensorBatch = List[torch.Tensor]
 

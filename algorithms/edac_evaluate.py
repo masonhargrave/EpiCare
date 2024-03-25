@@ -1,10 +1,10 @@
 import argparse
 
+import epicare.evaluations as evaluations
 import gym
 import torch
-from edac import Actor, TrainConfig, VectorizedCritic, wrap_env
 
-import epicare.evaluations as evaluations
+from edac import Actor, TrainConfig, VectorizedCritic, wrap_env
 
 
 def load_model(checkpoint_path, config):
