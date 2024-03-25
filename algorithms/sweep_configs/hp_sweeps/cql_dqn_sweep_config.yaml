@@ -9,9 +9,9 @@ parameters:
       - 3e-5
   alpha:
     values:
+      - 0.1
+      - 0.25
       - 0.5
-      - 1.0
-      - 4.0
   frame_stack:
     values:
       - 1
