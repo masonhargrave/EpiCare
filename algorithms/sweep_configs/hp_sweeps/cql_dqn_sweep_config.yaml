@@ -20,4 +20,4 @@ parameters:
     values:
       - True
       - False
-program: cql.py
+program: cql_dqn.py
