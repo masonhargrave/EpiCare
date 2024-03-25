@@ -34,8 +34,8 @@ class TrainConfig:
     frame_stack: int = 8  # Number of frames to stack
     gamma: float = 1.0  # Discount factor
     load_model: str = ""  # Model load file name, "" doesn't load
-    max_timesteps: int = 80000  # Max time steps to run environment
     n_episodes: int = 1000  # How many episodes run during evaluation
+    max_timesteps: int = 100000  # Max time steps to run environment
     normalize: bool = True  # Normalize states
     num_checkpoints: int = 0  # Number of checkpoints to save
     orthogonal_init: bool = True  # Orthogonal initialization
@@ -649,11 +649,11 @@ def train(config: TrainConfig):
 
 
 if __name__ == "__main__":
-    with open("./sweep_configs/hp_sweeps/cql_sweep_config.yaml", "r") as f:
+    with open("./sweep_configs/all_data_sweeps/cql_final_config.yaml", "r") as f:
         sweep_config = yaml.load(f, Loader=yaml.FullLoader)
 
     # Start a new wandb run
-    run = wandb.init(config=sweep_config, group="CQL_EpiCare_sweep")
+    run = wandb.init(config=sweep_config, group="CQL_EpiCare_final")
 
     # Update the TrainConfig instance with parameters from wandb
     # This assumes that update_params will handle single value parameters correctly
