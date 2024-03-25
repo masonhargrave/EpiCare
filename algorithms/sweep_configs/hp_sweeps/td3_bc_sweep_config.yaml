@@ -1,4 +1,4 @@
-method: random
+method: grid
 metric:
   goal: maximize
   name: mean_normalized_score

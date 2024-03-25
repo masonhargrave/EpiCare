@@ -56,7 +56,7 @@ class TrainConfig:
     # evaluation frequency, will evaluate every eval_freq training steps
     eval_freq: int = int(5e3)
     # number of episodes to run during evaluation
-    n_episodes: int = 100
+    n_episodes: int = 1000
     # path for checkpoints saving, optional
     checkpoints_path: Optional[str] = "./checkpoints"
     # file name for loading a model, optional

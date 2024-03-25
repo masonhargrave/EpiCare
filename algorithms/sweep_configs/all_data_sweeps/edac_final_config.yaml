@@ -19,4 +19,22 @@ parameters:
       - 6
       - 7
       - 8
+  num_checkpoints:
+    values:
+      - 32
+  num_critics:
+    values:
+      - 100
+  eta:
+    values:
+      - 0.1
+  temperature:
+    values:
+      - 4.0
+  frame_stack:
+    values:
+      - 8
+  include_previous_action:
+    values:
+      - False
 program: edac.py

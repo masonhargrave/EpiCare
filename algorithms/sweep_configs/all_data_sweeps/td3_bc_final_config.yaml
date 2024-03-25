@@ -19,4 +19,19 @@ parameters:
       - 6
       - 7
       - 8
+  num_checkpoints:
+    values:
+      - 32
+  alpha:
+    values:
+      - 4.0
+  temperature:
+    values:
+      - 3.0
+  frame_stack:
+    values:
+      - 8
+  include_previous_action:
+    values:
+      - True
 program: td3_bc.py
