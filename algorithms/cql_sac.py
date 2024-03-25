@@ -63,9 +63,9 @@ class TrainConfig:
     reward_scale: float = 5.0  # Reward scale for normalization
     reward_bias: float = -1.0  # Reward bias for normalization
     policy_log_std_multiplier: float = 1.0  # Stochastic policy std multiplier
-    project: str = "CQL-Benchmark"  # wandb project name
-    group: str = "CQL-EpiCare"  # wandb group name
-    name: str = "CQL"  # wandb run name
+    project: str = "CQL-SAC-Benchmark"  # wandb project name
+    group: str = "CQL-SAC-EpiCare"  # wandb group name
+    name: str = "CQL-SAC"  # wandb run name
     env_seed: int = 1  # Environment seed
     temperature: float = 4.3  # Temperature for Gumbel-Softmax
     num_checkpoints: int = 32  # Number of checkpoints to save
@@ -1019,7 +1019,7 @@ def train(config: TrainConfig):
     }
 
     print("---------------------------------------")
-    print(f"Training CQL, Env: {config.env}, Seed: {seed}")
+    print(f"Training CQL-SAC, Env: {config.env}, Seed: {seed}")
     print("---------------------------------------")
 
     # Initialize actor
@@ -1097,7 +1097,7 @@ if __name__ == "__main__":
         sweep_config = yaml.load(f, Loader=yaml.FullLoader)
 
     # Start a new wandb run
-    run = wandb.init(config=sweep_config, group="CQL_EpiCare_sweep")
+    run = wandb.init(config=sweep_config, group="CQL-SAC_EpiCare_sweep")
 
     # Update the TrainConfig instance with parameters from wandb
     # This assumes that update_params will handle single value parameters correctly

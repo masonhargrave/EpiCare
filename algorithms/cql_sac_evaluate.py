@@ -2,7 +2,7 @@ import argparse
 
 import gym
 import torch
-from cql import FullyConnectedQFunction, Policy, TrainConfig, wrap_env
+from cql_sac import FullyConnectedQFunction, Policy, TrainConfig, wrap_env
 
 import epicare.evaluations as evaluations
 
@@ -32,11 +32,11 @@ def load_model(checkpoint_path, config):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--base_path", type=str, default="./checkpoints")
-    parser.add_argument("--out_name", type=str, default="cql_results")
+    parser.add_argument("--out_name", type=str, default="cql_sac_results")
     args = parser.parse_args()
 
     eval_episodes = 1000
-    model_name = "CQL"
+    model_name = "CQL-SAC"
 
     results_df = evaluations.process_checkpoints(
         args.base_path,

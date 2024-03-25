@@ -33,5 +33,4 @@ parameters:
       - 128
       - 64
       - 32
-
-program: cql.py
+program: cql_sac.py
