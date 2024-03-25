@@ -84,7 +84,7 @@ class TrainConfig:
     # environment seed
     env_seed: int = 1
     # number of checkpoints
-    num_checkpoints: Optional[int] = 1
+    num_checkpoints: Optional[int] = 0
     # frame stacking memory
     frame_stack: int = 8
     # behavior policy
