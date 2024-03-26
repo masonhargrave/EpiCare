@@ -23,7 +23,7 @@ TensorBatch = List[torch.Tensor]
 class TrainConfig:
     alpha: float = 1.0  # Multiplier for alpha in loss
     batch_size: int = 256  # Batch size for all networks
-    buffer_size: int = 2000000  # Replay buffer size
+    buffer_size: int = 1000000  # Replay buffer size
     checkpoints_path: Optional[str] = "./checkpoints"  # Save path
     dataset_path: Optional[str] = None  # Path to the dataset
     device: str = "cuda"
@@ -47,7 +47,7 @@ class TrainConfig:
     group: str = "CQL-DQN-EpiCare"
     behavior_policy: str = "smart"  # Behavior policy for data collection
     # include previous action in the observation
-    include_previous_action: bool = False
+    include_previous_action: bool = True
 
     # Update the parameters with the parameters of the sweep
     def update_params(self, params: Dict[str, Any]) -> "TrainConfig":
@@ -175,8 +175,8 @@ class DiscreteCQL:
         # Compare to the Q-values of the current state-action pair.
         curr_q1 = torch.sum(self.q1(observations) * actions, dim=-1)
         curr_q2 = torch.sum(self.q2(observations) * actions, dim=-1)
-        q1_loss = F.smooth_l1_loss(curr_q1, pred_q)
-        q2_loss = F.smooth_l1_loss(curr_q2, pred_q)
+        q1_loss = F.mse_loss(curr_q1, pred_q)
+        q2_loss = F.mse_loss(curr_q2, pred_q)
         loss = q1_loss + q2_loss
 
         log_dict = dict(
