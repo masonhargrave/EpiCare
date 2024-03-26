@@ -672,7 +672,7 @@ def train(config: TrainConfig):
     )
     replay_buffer.preprocess_dataset(dataset)
 
-    if config.num_checkpoints is not None:
+    if config.num_checkpoints:
         print(f"Checkpoints path: {config.checkpoints_path}")
         os.makedirs(config.checkpoints_path, exist_ok=True)
         with open(os.path.join(config.checkpoints_path, "config.yaml"), "w") as f:
