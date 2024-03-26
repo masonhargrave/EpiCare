@@ -3,13 +3,15 @@ metric:
   goal: maximize
   name: normalized_score_mean
 parameters:
+  gamma:
+    values:
+      - 0.1
+      - 0.5
+      - 0.9
   qf_lr:
     values:
       - 1e-4
       - 3e-5
-  alpha:
-    values:
-      - 0.0
   frame_stack:
     values:
       - 1
@@ -18,4 +20,4 @@ parameters:
     values:
       - True
       - False
-program: cql_dqn.py
+program: dqn.py

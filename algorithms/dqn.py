@@ -11,17 +11,16 @@ import numpy as np
 import pyrallis
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import wandb
 import yaml
 from epicare.envs import EpiCare  # noqa: F401
+
+import wandb
 
 TensorBatch = List[torch.Tensor]
 
 
 @dataclass
 class TrainConfig:
-    alpha: float = 1.0  # Multiplier for alpha in loss
     batch_size: int = 256  # Batch size for all networks
     buffer_size: int = 2000000  # Replay buffer size
     checkpoints_path: Optional[str] = "./checkpoints"  # Save path
@@ -32,7 +31,7 @@ class TrainConfig:
     episodes_avail: int = 65536 * 2  # Number of episodes
     eval_freq: int = 5000  # How often (time steps) we evaluate
     frame_stack: int = 8  # Number of frames to stack
-    gamma: float = 1.0  # Discount factor
+    gamma: float = 0.1  # Discount factor
     load_model: str = ""  # Model load file name, "" doesn't load
     n_episodes: int = 1000  # How many episodes run during evaluation
     max_timesteps: int = 200000  # Max time steps to run environment
@@ -109,21 +108,10 @@ class FullyConnectedQFunction(nn.Module):
     def forward(self, observations: torch.Tensor) -> torch.Tensor:
         return self.network(observations)
 
-
-class Policy(nn.Module):
-    def __init__(
-        self,
-        q,
-        device: str = "cpu",
-    ):
-        super().__init__()
-        self.q = q
-        self.device = device
-
     def act(self, state: np.ndarray, device: str) -> np.ndarray:
         state = torch.tensor(state, dtype=torch.float32, device=device)
         with torch.no_grad():
-            return self.q(state).cpu().numpy()
+            return self(state).cpu().numpy()
 
 
 class DeepQNetwork:
@@ -132,16 +120,14 @@ class DeepQNetwork:
         q,
         q_optimizer,
         gamma,
-        alpha: float = 5.0,
         device: str = "cpu",
     ):
         self.q = q
         self.q_optimizer = q_optimizer
         self.gamma = gamma
-        self.alpha = alpha
         self.device = device
-        self.policy = Policy(q, device)
         self.total_it = 0
+        self.loss = torch.nn.MSELoss()
 
     def train(self, batch: TensorBatch) -> Dict[str, float]:
         (
@@ -155,9 +141,9 @@ class DeepQNetwork:
 
         rewards, terminals = rewards.squeeze(), terminals.squeeze()
         values = torch.sum(self.q(observations) * actions, dim=-1)
-        next_values = self.q(next_observations).argmax(dim=-1)
+        next_values = self.q(next_observations).max(dim=-1).values
         pred = rewards + self.gamma * next_values * (1 - terminals)
-        loss = F.huber_loss(values, pred)
+        loss = self.loss(values, pred)
 
         self.q_optimizer.zero_grad()
         loss.backward()
@@ -512,7 +498,6 @@ def train(config: TrainConfig):
         q,
         q_optimizer,
         gamma=config.gamma,
-        alpha=config.alpha,
         device=config.device,
     )
 
@@ -544,7 +529,7 @@ def train(config: TrainConfig):
             print(f"Time steps: {t + 1}")
             eval_scores = eval_actor(
                 env,
-                trainer.policy,
+                trainer.q,
                 device=config.device,
                 n_episodes=config.n_episodes,
                 seed=config.seed,
