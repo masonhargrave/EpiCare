@@ -59,15 +59,15 @@ class StandardOfCare(BasePolicy):
     A state-agnostic greedy policy that selects the treatment with the highest remission probability.
     """
 
-    def __init__(self, env, alpha=0.5, kappa=0.3):
+    def __init__(self, env, alpha=0.5, kappa=0.2):
         self.alpha = alpha  # Learning rate for updating estimates
-        self.max_allowable_symptom = 1 - kappa/2
+        self.max_allowable_symptom = 1 - kappa
         super().__init__(env)
 
     def get_treatment(self, observation):
         # Limit the possible treatments to only those which do not increase any symptom
         # that is currently at or above the policy's adverse event threshold.
-        high_symptoms = observation >= self.max_allowable_symptom
+        high_symptoms = observation > self.max_allowable_symptom
         allowed = [
             i
             for i, treatment in enumerate(self.env.treatments.values())
