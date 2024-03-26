@@ -38,7 +38,7 @@ class TrainConfig:
     normalize: bool = True  # Normalize states
     num_checkpoints: int = 0  # Number of checkpoints to save
     orthogonal_init: bool = True  # Orthogonal initialization
-    qf_lr: float = 3e-05  # Critics learning rate
+    qf_lr: float = 1e-4  # Critics learning rate
     q_n_hidden_layers: int = 3  # Number of hidden layers in Q networks
     seed: int = 0  # Sets Gym, PyTorch and Numpy seeds
     name: str = "DQN"
@@ -46,7 +46,7 @@ class TrainConfig:
     group: str = "DQN-EpiCare"
     behavior_policy: str = "smart"  # Behavior policy for data collection
     # include previous action in the observation
-    include_previous_action: bool = False
+    include_previous_action: bool = True
 
     # Update the parameters with the parameters of the sweep
     def update_params(self, params: Dict[str, Any]) -> "TrainConfig":
