@@ -22,7 +22,7 @@ TensorBatch = List[torch.Tensor]
 @dataclass
 class TrainConfig:
     batch_size: int = 256  # Batch size for all networks
-    buffer_size: int = 2000000  # Replay buffer size
+    buffer_size: int = 1000000  # Replay buffer size
     checkpoints_path: Optional[str] = "./checkpoints"  # Save path
     dataset_path: Optional[str] = None  # Path to the dataset
     device: str = "cuda"
@@ -33,18 +33,18 @@ class TrainConfig:
     frame_stack: int = 8  # Number of frames to stack
     actor_lr: float = 1e-4  # Learning rate for actor
     load_model: str = ""  # Model load file name, "" doesn't load
-    max_timesteps: int = 200000  # Max time steps to run environment
+    max_timesteps: int = 400000  # Max time steps to run environment
     n_episodes: int = 100  # How many episodes run during evaluation
     normalize: bool = True  # Normalize states
-    num_checkpoints: int = 0  # Number of checkpoints to save
+    num_checkpoints: int = 32  # Number of checkpoints to save
     orthogonal_init: bool = True  # Orthogonal initialization
-    seed: int = 0  # Sets Gym, PyTorch and Numpy seeds
+    seed: int = 3  # Sets Gym, PyTorch and Numpy seeds
     name: str = "BC"
     project: str = "BC-Benchmark"
     group: str = "BC-EpiCare"
     behavior_policy: str = "smart"  # Behavior policy for data collection
     # include previous action in the observation
-    include_previous_action: bool = False
+    include_previous_action: bool = True
 
     # Update the parameters with the parameters of the sweep
     def update_params(self, params: Dict[str, Any]) -> "TrainConfig":
@@ -106,7 +106,7 @@ class Actor(nn.Module):
     def act(self, state: np.ndarray, device: str = "cpu") -> int:
         state = torch.tensor(state.reshape(1, -1), device=device, dtype=torch.float32)
         logits = self.net(state)
-        action = torch.multinomial(F.softmax(logits), 1)
+        action = torch.multinomial(F.softmax(logits, -1), 1)
         return np.arange(logits.shape[-1]) == action.item()
 
 
