@@ -1,3 +1,4 @@
+import functools
 import os
 from pathlib import Path
 from typing import Tuple
@@ -210,6 +211,58 @@ def calculate_estimators(ratio_0pad, ratio_1pad, reward, discount=1.0):
     return estimators
 
 
+@functools.lru_cache(maxsize=1)
+def load_dataset(
+    h5py_filename, cutoff, frame_stack, include_previous_action, device="cuda"
+):
+    with h5py.File(h5py_filename, "r") as dataset:
+        print(f"Using cutoff: {cutoff}")
+        observations = np.array(dataset["observations"][:cutoff])
+        actions = torch.tensor(dataset["actions"][:cutoff], dtype=torch.long)
+        rewards = torch.tensor(dataset["rewards"][:cutoff])
+        terminals = np.array(dataset["terminals"][:cutoff])
+        behavior_probs = np.array(dataset["action_probabilities"][:cutoff])
+
+    # Identify the start of each trajectory
+    start_indices = [0] + list(np.nonzero(terminals)[0] + 1)
+    episode_lengths = tuple(np.diff(start_indices))
+    n_trajectories = len(episode_lengths)
+
+    # Compute all action probabilities from the model in one batch.
+    # This is the only part of this that uses the model (or the GPU).
+    # First calculate the input dimension depending on the amount of frame
+    # stacking, then put the observations in using code derivative of the
+    # ReplayBuffer class. Finally add the previous action if necessary.
+    n_samples = observations.shape[0]
+    base_obs_dim = observations.shape[1]
+    fss = torch.zeros((n_samples, frame_stack, base_obs_dim)).to(device)
+
+    print("Performing frame stacking etc...")
+    obs_tensor = torch.tensor(observations, dtype=torch.float32).to(device)
+    for start, end in zip(start_indices[:-1], start_indices[1:]):
+        for i in range(start, end):
+            for j in range(i, min(i + frame_stack, end)):
+                fss[j, j - i] = obs_tensor[i]
+
+    # Squish the observations, and THEN add the previous action if
+    # necessary.
+    fss = fss.view(n_samples, -1)
+    if include_previous_action:
+        prev_actions = (
+            torch.where(
+                torch.tensor(terminals, dtype=bool),
+                torch.zeros_like(actions),
+                actions,
+            )
+            .roll(1, dims=0)
+            .to(device)
+        )
+        ohe_actions = torch.nn.functional.one_hot(prev_actions)
+        fss = torch.cat([fss, ohe_actions], dim=-1)
+
+    return fss, actions, rewards, behavior_probs, episode_lengths, n_trajectories
+
+
 def evaluate_offline(
     h5py_filename,
     config,
@@ -239,94 +292,62 @@ def evaluate_offline(
         X = pad_sequence(X, padding_value=pad)
         return X
 
-    with h5py.File(h5py_filename, "r") as dataset:
-        # Check if the config file has an episodes_avail attribute
-        if cutoff:
+    # Check if the config file has an episodes_avail attribute
+    if cutoff is not None:
+        with h5py.File(h5py_filename, "r") as dataset:
             cutoff = get_cutoff(dataset, config)
-        print(f"Using cutoff: {cutoff}")
-        observations = np.array(dataset["observations"][:cutoff])
-        actions = torch.tensor(dataset["actions"][:cutoff], dtype=torch.long)
-        rewards = torch.tensor(dataset["rewards"][:cutoff])
-        terminals = np.array(dataset["terminals"][:cutoff])
-        behavior_probs = np.array(dataset["action_probabilities"][:cutoff])
 
-        # Identify the start of each trajectory
-        start_indices = [0] + list(np.nonzero(terminals)[0] + 1)
-        episode_lengths = tuple(np.diff(start_indices))
-        n_trajectories = len(episode_lengths)
+    (
+        fss,
+        actions,
+        rewards,
+        behavior_probs,
+        episode_lengths,
+        n_trajectories,
+    ) = load_dataset(
+        h5py_filename,
+        cutoff,
+        config.frame_stack,
+        config.include_previous_action,
+        device=device,
+    )
+    with torch.no_grad():
+        all_eval_probs = eval_policy.get_action_probabilities(fss).squeeze(0).cpu()
 
-        # Compute all action probabilities from the model in one batch.
-        # This is the only part of this that uses the model (or the GPU).
-        # First calculate the input dimension depending on the amount of frame
-        # stacking, then put the observations in using code derivative of the
-        # ReplayBuffer class. Finally add the previous action if necessary.
-        n_samples = observations.shape[0]
-        base_obs_dim = observations.shape[1]
-        fss = torch.zeros((n_samples, config.frame_stack, base_obs_dim)).to(device)
+    eval_probs = all_eval_probs.gather(-1, actions.unsqueeze(-1)).squeeze(-1)
+    ratio = eval_probs / behavior_probs
 
-        print("Performing frame stacking etc...")
-        obs_tensor = torch.tensor(observations, dtype=torch.float32).to(device)
-        for start, end in zip(start_indices[:-1], start_indices[1:]):
-            for i in range(start, end):
-                for j in range(i, min(i + config.frame_stack, end)):
-                    fss[j, j - i] = obs_tensor[i]
+    # Compute the log probabilities of actions under the evaluation policy
+    log_eval_probs = torch.log(eval_probs + 1e-45)
 
-        # Squish the observations, and THEN add the previous action if
-        # necessary.
-        fss = fss.view(n_samples, -1)
-        if config.include_previous_action:
-            prev_actions = torch.where(
-                torch.tensor(terminals, dtype=bool),
-                torch.zeros_like(actions),
-                actions,
-            ).roll(1, dims=0).to(device)
-            ohe_actions = torch.nn.functional.one_hot(prev_actions)
-            fss = torch.cat([fss, ohe_actions], dim=-1)
+    # Reshape log probabilities into episodes
+    log_eval_probs = dataset2episodes(log_eval_probs, pad=0)
+    ratio_0pad = dataset2episodes(ratio, pad=0)
+    ratio_1pad = dataset2episodes(ratio, pad=1)
+    rewards = dataset2episodes(rewards, pad=0)
 
-        print("Calculating action probabilities...")
-        with torch.no_grad():
-            all_eval_probs = eval_policy.get_action_probabilities(fss).squeeze(0).cpu()
+    results = {"MeanLogProb": []}
+    for i in tqdm(range(num_folds)):
+        # Randomly sample trajectory indices with replacement
+        sampled_indices = np.random.choice(n_trajectories, n_trajectories, replace=True)
 
-        eval_probs = all_eval_probs.gather(-1, actions.unsqueeze(-1)).squeeze(-1)
-        ratio = eval_probs / behavior_probs
+        log_eval_probs_sub = log_eval_probs[:, sampled_indices]
+        ratio_0pad_sub = ratio_0pad[:, sampled_indices]
+        ratio_1pad_sub = ratio_1pad[:, sampled_indices]
+        rewards_sub = rewards[:, sampled_indices]
 
-        # Compute the log probabilities of actions under the evaluation policy
-        log_eval_probs = torch.log(eval_probs + 1e-45)
+        # Calculate mean log probability per episode
+        mean_log_prob = log_eval_probs_sub.sum(dim=0) / torch.tensor(episode_lengths)
+        results["MeanLogProb"].append(mean_log_prob.mean().item())
 
-        # Reshape log probabilities into episodes
-        log_eval_probs = dataset2episodes(log_eval_probs, pad=0)
-        ratio_0pad = dataset2episodes(ratio, pad=0)
-        ratio_1pad = dataset2episodes(ratio, pad=1)
-        rewards = dataset2episodes(rewards, pad=0)
+        estimators = calculate_estimators(ratio_0pad_sub, ratio_1pad_sub, rewards_sub)
+        for estimator in estimators:
+            if estimator not in results:
+                results[estimator] = []
+            results[estimator].append(estimators[estimator])
 
-        results = {"MeanLogProb": []}
-        for i in tqdm(range(num_folds)):
-            # Randomly sample trajectory indices with replacement
-            sampled_indices = np.random.choice(
-                n_trajectories, n_trajectories, replace=True
-            )
-
-            log_eval_probs_sub = log_eval_probs[:, sampled_indices]
-            ratio_0pad_sub = ratio_0pad[:, sampled_indices]
-            ratio_1pad_sub = ratio_1pad[:, sampled_indices]
-            rewards_sub = rewards[:, sampled_indices]
-
-            # Calculate mean log probability per episode
-            mean_log_prob = log_eval_probs_sub.sum(dim=0) / torch.tensor(
-                episode_lengths
-            )
-            results["MeanLogProb"].append(mean_log_prob.mean().item())
-
-            estimators = calculate_estimators(
-                ratio_0pad_sub, ratio_1pad_sub, rewards_sub
-            )
-            for estimator in estimators:
-                if estimator not in results:
-                    results[estimator] = []
-                results[estimator].append(estimators[estimator])
-
-        print(results)
-        return results
+    print(results)
+    return results
 
 
 def process_checkpoints(
@@ -335,7 +356,7 @@ def process_checkpoints(
     TrainConfig,
     load_model,
     wrap_env,
-    eval_episodes=10000,
+    eval_episodes=2000,
     do_ope=True,
     out_name=None,
 ):
