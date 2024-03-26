@@ -8,11 +8,23 @@ import numpy as np
 import pandas as pd
 import torch
 import yaml
+from epicare.policies import BasePolicy
+from epicare.utils import get_cutoff, load_custom_dataset
 from torch.nn.utils.rnn import pad_sequence
 from tqdm.auto import tqdm
 
-from epicare.policies import BasePolicy
-from epicare.utils import get_cutoff, load_custom_dataset
+
+def state_and_action_dims(env, config):
+    # Action dim is the NUMBER of actions because of OHE.
+    action_dim = underlying_action_count = env.action_space.n
+
+    # State dim is affected by frame stacking and previous action inclusion.
+    underlying_state_dim = env.observation_space.shape[0]
+    state_dim = underlying_state_dim * config.frame_stack
+    if config.include_previous_action:
+        state_dim += underlying_action_count
+
+    return state_dim, action_dim
 
 
 def run_episode(
@@ -99,7 +111,9 @@ def run_episode(
         return total_reward, time_to_remission, steps, transitions
 
 
-def evaluate_online(model, env, eval_episodes, device, frame_stack, qvalue=None):
+def evaluate_online(
+    model, env, eval_episodes, device, frame_stack, include_previous_action
+):
     model.eval()
     model.to(device)
     returns = []
@@ -114,15 +128,21 @@ def evaluate_online(model, env, eval_episodes, device, frame_stack, qvalue=None)
         time_to_remission = None
         remission_detected = False
 
+        prev_action = np.zeros(env.action_space.n)
         while not done:
             state_history = np.roll(state_history, shift=1, axis=0)
             state_history[0] = state
-            action = model.act(state_history, device=device)
+            if include_previous_action:
+                input = np.concatenate((state_history.flatten(), prev_action))
+            else:
+                input = state_history.flatten()
+            action = model.act(input, device=device)
             # Check if action is OHE anad convert to discrete action if so
             if isinstance(action, np.ndarray):
                 action = np.argmax(action)  # Convert to discrete action if necessary
             state, reward, done, info = env.step(action)
             episode_return += reward
+            prev_action = np.eye(env.action_space.n)[action]
 
             # Check for remission and record time to remission
             if info.get("remission", False) and not remission_detected:
@@ -159,13 +179,7 @@ def evaluate_online(model, env, eval_episodes, device, frame_stack, qvalue=None)
 
 
 def calculate_estimators(ratio_0pad, ratio_1pad, reward, discount=1.0):
-    """
-    Evaluate a policy offline with importance sampling.
-
-    :param policy: Policy
-    :param data: Dataset
-    :param qvalue: QValue
-    """
+    "Calculate specifically the importance-sampling estimators for OPE."
 
     discount = torch.tensor([discount**t for t in range(reward.size(0))]).view(-1, 1)
     discounted_reward = reward * discount
@@ -207,12 +221,13 @@ def evaluate_offline(
     cutoff=None,
 ):
     """
-    Calculate the CWPDIS estimate for the policy based on the provided h5py dataset.
+    Run offline evaluation of a policy.
 
     :param h5py_filename: The filename of the h5py dataset containing the trajectories
+    :param config: The run configuration object
     :param eval_policy: The policy we are evaluating
     :param device: The device to perform calculations on
-    :return: CWPDIS estimate
+    :return: A dictionary of estimators
     """
 
     def dataset2episodes(X, pad):
@@ -241,12 +256,35 @@ def evaluate_offline(
         episode_lengths = tuple(np.diff(start_indices))
         n_trajectories = len(episode_lengths)
 
-        # GPU: Compute all action probabilities from the model in one batch
+        # Compute all action probabilities from the model in one batch.
+        # This is the only part of this that uses the model (or the GPU).
+        # First calculate the input dimension depending on the amount of frame
+        # stacking, then put the observations in using code derivative of the
+        # ReplayBuffer class. Finally add the previous action if necessary.
+        n_samples = observations.shape[0]
+        base_obs_dim = observations.shape[1]
+        fss = torch.zeros((n_samples, config.frame_stack, base_obs_dim)).to(device)
+
         obs_tensor = torch.tensor(observations, dtype=torch.float32).to(device)
+        for start, end in zip(start_indices[:-1], start_indices[1:]):
+            for i in range(start, end):
+                for j in range(i, min(i + config.frame_stack, end)):
+                    fss[j, j - i] = obs_tensor[i]
+
+        # Squish the observations, and THEN add the previous action if
+        # necessary.
+        fss = fss.view(n_samples, -1)
+        if config.include_previous_action:
+            prev_actions = torch.where(
+                torch.tensor(terminals, dtype=bool),
+                torch.zeros_like(actions),
+                actions,
+            ).roll(1, dims=0).to(device)
+            ohe_actions = torch.nn.functional.one_hot(prev_actions)
+            fss = torch.cat([fss, ohe_actions], dim=-1)
+
         with torch.no_grad():
-            all_eval_probs = (
-                eval_policy.get_action_probabilities(obs_tensor).squeeze(0).cpu()
-            )
+            all_eval_probs = eval_policy.get_action_probabilities(fss).squeeze(0).cpu()
 
         eval_probs = all_eval_probs.gather(-1, actions.unsqueeze(-1)).squeeze(-1)
         ratio = eval_probs / behavior_probs
@@ -383,16 +421,20 @@ def process_checkpoints(
                     mean_time_to_remission,
                     std_time_to_remission,
                 ) = evaluate_online(
-                    actor, env, eval_episodes, config.device, config.frame_stack
+                    actor,
+                    env,
+                    eval_episodes,
+                    config.device,
+                    config.frame_stack,
+                    config.include_previous_action,
                 )
 
                 # Offline evaluation (if applicable)
                 offline_estimates = {}
                 if do_ope:
                     hdf5_path = os.path.join(
-                        "data", f"test_seed_{config.env_seed}.hdf5"
+                        "data/smart", f"test_seed_{config.env_seed}.hdf5"
                     )
-                    # hdf5_path = os.path.join("./data", f"seed_{config.env_seed}.hdf5")
                     estimates = evaluate_offline(
                         hdf5_path,
                         config,
