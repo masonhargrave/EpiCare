@@ -32,7 +32,7 @@ class TrainConfig:
     episodes_avail: int = 65536 * 2  # Number of episodes
     eval_freq: int = 5000  # How often (time steps) we evaluate
     frame_stack: int = 8  # Number of frames to stack
-    gamma: float = 1.0  # Discount factor
+    gamma: float = 0.0  # Discount factor
     load_model: str = ""  # Model load file name, "" doesn't load
     n_episodes: int = 1000  # How many episodes run during evaluation
     max_timesteps: int = 200000  # Max time steps to run environment
@@ -163,23 +163,27 @@ class DiscreteCQL:
         terminals: torch.Tensor,
     ):
         rewards, terminals = rewards.squeeze(), terminals.squeeze()
-        q1_values = torch.sum(self.q1(observations) * actions, dim=-1)
-        next_q1_values = self.q1(next_observations).argmax(dim=-1)
-        pred_q1 = rewards + self.gamma * next_q1_values * (1 - terminals)
-        q1_loss = F.huber_loss(q1_values, pred_q1)
 
-        q2_values = torch.sum(self.q2(observations) * actions, dim=-1)
-        next_q2_values = self.q2(next_observations).argmax(dim=-1)
-        pred_q2 = rewards + self.gamma * next_q2_values * (1 - terminals)
-        q2_loss = F.huber_loss(q2_values, pred_q2)
+        # Find the Q value of the best next action.
+        next_q1 = self.q1(next_observations).max(dim=-1).values
+        next_q2 = self.q2(next_observations).max(dim=-1).values
+        next_q = torch.minimum(next_q1, next_q2)
 
+        # Bellman update based on the minimum Q-value.
+        pred_q = rewards + self.gamma * next_q * (1 - terminals)
+
+        # Compare to the Q-values of the current state-action pair.
+        curr_q1 = torch.sum(self.q1(observations) * actions, dim=-1)
+        curr_q2 = torch.sum(self.q2(observations) * actions, dim=-1)
+        q1_loss = F.smooth_l1_loss(curr_q1, pred_q)
+        q2_loss = F.smooth_l1_loss(curr_q2, pred_q)
         loss = q1_loss + q2_loss
 
         log_dict = dict(
             q1_loss=q1_loss.item(),
             q2_loss=q2_loss.item(),
-            q1_value=q1_values.mean().item(),
-            q2_value=q2_values.mean().item(),
+            q1_value=curr_q1.mean().item(),
+            q2_value=curr_q2.mean().item(),
         )
 
         return loss, log_dict
