@@ -214,7 +214,6 @@ def evaluate_offline(
     h5py_filename,
     config,
     eval_policy,
-    q_network,
     device="cuda",
     discount=1.0,
     num_folds=8,
@@ -265,6 +264,7 @@ def evaluate_offline(
         base_obs_dim = observations.shape[1]
         fss = torch.zeros((n_samples, config.frame_stack, base_obs_dim)).to(device)
 
+        print("Performing frame stacking etc...")
         obs_tensor = torch.tensor(observations, dtype=torch.float32).to(device)
         for start, end in zip(start_indices[:-1], start_indices[1:]):
             for i in range(start, end):
@@ -283,6 +283,7 @@ def evaluate_offline(
             ohe_actions = torch.nn.functional.one_hot(prev_actions)
             fss = torch.cat([fss, ohe_actions], dim=-1)
 
+        print("Calculating action probabilities...")
         with torch.no_grad():
             all_eval_probs = eval_policy.get_action_probabilities(fss).squeeze(0).cpu()
 
@@ -291,42 +292,14 @@ def evaluate_offline(
 
         # Compute the log probabilities of actions under the evaluation policy
         log_eval_probs = torch.log(eval_probs + 1e-45)
-        # Resahep log probabilities into episodes
+
+        # Reshape log probabilities into episodes
         log_eval_probs = dataset2episodes(log_eval_probs, pad=0)
-
-        action_dim = all_eval_probs.size(-1)
-        # GPU: Compute Q-values for all actions for each state in one batch
-        with torch.no_grad():
-            # Iterate over all ohe actions
-            all_Qs = []
-            for action in range(action_dim):
-                # Create a tensor with the action repeated for each state
-                action_tensor = torch.tensor(
-                    [action] * len(observations), dtype=torch.long
-                ).to(device)
-                # One hot encode the action
-                action_tensor = torch.nn.functional.one_hot(
-                    action_tensor, num_classes=action_dim
-                )
-                # Compute the Q-values for the action
-                Qs = q_network(obs_tensor, action_tensor)
-
-                all_Qs.append(Qs.cpu())
-
-        # Stack the Q-values for each action into a single tensor
-        all_Qs = torch.stack(all_Qs, dim=1)
-        # Use all_eval_probs to get expected reward in each state
-        left_term = (all_Qs * all_eval_probs).sum(dim=-1)
-        Qs = all_Qs.gather(-1, actions.unsqueeze(-1)).squeeze(-1)
-        right_term = ratio * (rewards - Qs)
-        all_DR_estimates = left_term + right_term
-
-        DR_estimates = dataset2episodes(all_DR_estimates, pad=0)
         ratio_0pad = dataset2episodes(ratio, pad=0)
         ratio_1pad = dataset2episodes(ratio, pad=1)
         rewards = dataset2episodes(rewards, pad=0)
 
-        results = {"DR": [], "MeanLogProb": []}
+        results = {"MeanLogProb": []}
         for i in tqdm(range(num_folds)):
             # Randomly sample trajectory indices with replacement
             sampled_indices = np.random.choice(
@@ -337,9 +310,6 @@ def evaluate_offline(
             ratio_0pad_sub = ratio_0pad[:, sampled_indices]
             ratio_1pad_sub = ratio_1pad[:, sampled_indices]
             rewards_sub = rewards[:, sampled_indices]
-            DR_estimates_sub = DR_estimates[:, sampled_indices]
-            num_steps_sub = np.array(episode_lengths)[sampled_indices].sum()
-            results["DR"].append(DR_estimates_sub.sum().item() / num_steps_sub)
 
             # Calculate mean log probability per episode
             mean_log_prob = log_eval_probs_sub.sum(dim=0) / torch.tensor(
@@ -365,9 +335,9 @@ def process_checkpoints(
     TrainConfig,
     load_model,
     wrap_env,
-    eval_episodes=1000,
-    do_ope=False,
-    out_name=False,
+    eval_episodes=10000,
+    do_ope=True,
+    out_name=None,
 ):
     results = []
 
@@ -377,6 +347,9 @@ def process_checkpoints(
         mean = states.mean(0)
         std = states.std(0) + eps
         return mean, std
+
+    if base_path is None:
+        base_path = "checkpoints"
 
     # Iterate over directories
     for dir_name in os.listdir(base_path):
@@ -405,9 +378,10 @@ def process_checkpoints(
                     load_custom_dataset(config)["observations"], eps=1e-3
                 )
                 print("Checkpoint path: ", checkpoint_path)
-                actor, critic = load_model(checkpoint_path, config)
-                if actor is None or critic is None:
-                    print(f"Failed to load model from {checkpoint_path}")
+                try:
+                    actor = load_model(checkpoint_path, config)
+                except Exception as e:
+                    print(f"Failed to load model from {checkpoint_path}", e)
                     continue
                 env_name = config.env if hasattr(config, "env") else config.env_name
                 env = gym.make(env_name, seed=config.env_seed)
@@ -439,7 +413,6 @@ def process_checkpoints(
                         hdf5_path,
                         config,
                         actor,
-                        critic,
                         device=config.device,
                         discount=1.0,
                     )

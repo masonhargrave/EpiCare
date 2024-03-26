@@ -4,7 +4,7 @@ import epicare.evaluations as evaluations
 import gym
 import torch
 
-from cql_sac import FullyConnectedQFunction, Policy, TrainConfig, wrap_env
+from cql_sac import Policy, TrainConfig, wrap_env
 
 
 def load_model(checkpoint_path, config):
@@ -12,40 +12,25 @@ def load_model(checkpoint_path, config):
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.n
 
-    # Initialize the policy model
+    # Rehydrate the actor.
     actor = Policy(state_dim, action_dim, config.temperature).to(config.device)
-    critic_1 = FullyConnectedQFunction(state_dim, action_dim).to(config.device)
-    critic_2 = FullyConnectedQFunction(state_dim, action_dim).to(config.device)
-
-    # Load the state dictionary
     state_dict = torch.load(checkpoint_path)
     actor.load_state_dict(state_dict["actor"])
-    critic_1.load_state_dict(state_dict["critic1"])
-    critic_2.load_state_dict(state_dict["critic2"])
-
-    def critic(state, action):
-        return (1 / 2) * (critic_1(state, action) + critic_2(state, action))
-
-    return actor, critic
+    return actor
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base_path", type=str, default="./checkpoints")
-    parser.add_argument("--out_name", type=str, default="cql_sac_results")
+    parser.add_argument("--base_path", type=str)
+    parser.add_argument("--out_name", type=str)
     args = parser.parse_args()
-
-    eval_episodes = 1000
-    model_name = "CQL-SAC"
 
     results_df = evaluations.process_checkpoints(
         args.base_path,
-        model_name,
+        "CQL-SAC",
         TrainConfig,
         load_model,
         wrap_env,
-        eval_episodes,
-        do_ope=True,
         out_name=args.out_name,
     )
 
