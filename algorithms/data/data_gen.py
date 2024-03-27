@@ -9,6 +9,11 @@ from epicare.policies import ClinicalTrial, Oracle, Random, StandardOfCare
 
 
 def generate_one(seed, prefix):
+    filename = f"{args.policy}/{prefix}_seed_{seed}.hdf5"
+    if os.path.exists(filename):
+        print(filename, "already exists, skipping")
+        return
+
     # Initialize environment
     env = EpiCare(seed=seed)
 
@@ -53,8 +58,7 @@ def generate_one(seed, prefix):
     for key in data:
         data[key] = np.array(data[key])
 
-    # Create filename based on seed
-    filename = f"{args.policy}/{prefix}_seed_{seed}.hdf5"
+    # Make sure the directory exists.
     if not os.path.exists(os.path.dirname(filename)):
         os.makedirs(os.path.dirname(filename))
 
@@ -96,7 +100,7 @@ if __name__ == "__main__":
     )[args.policy]
 
     print(
-        f"Generating {args.seeds} seeds × {args.num_episodes} episodes"
+        f"Generating {args.seeds} seeds × {args.num_episodes} episodes",
         f"of training and test data from {args.policy}"
     )
 
