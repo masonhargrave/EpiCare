@@ -34,7 +34,7 @@ class TrainConfig:
     # number of episodes
     episodes_avail: int = 65536 * 2
     # path to the dataset
-    dataset_path: Optional[str] = "./data/train_seed_1.hdf5"
+    dataset_path: Optional[str] = None
     # wandb project name
     project: str = "IQL-Benchmark"
     # wandb group name
@@ -67,11 +67,11 @@ class TrainConfig:
     # actor learning rate
     actor_lr: float = 3e-4
     #  where to use dropout for policy network, optional
-    actor_dropout: Optional[float] = 0.0
+    actor_dropout: Optional[float] = 0.1
     # evaluation frequency, will evaluate every eval_freq training steps
     eval_freq: int = int(5e3)
     # number of episodes to run during evaluation
-    n_episodes: int = 100
+    n_episodes: int = 1000
     # path for checkpoints saving, optional
     checkpoints_path: Optional[str] = "./checkpoints"
     # file name for loading a model, optional
@@ -89,7 +89,7 @@ class TrainConfig:
     # behavior policy
     behavior_policy: str = "smart"
     # include previous action in the observation
-    include_previous_action: bool = False
+    include_previous_action: bool = True
 
     sweep_config: Optional[dict] = field(default=None)
 
