@@ -9,10 +9,11 @@ import numpy as np
 import pandas as pd
 import torch
 import yaml
-from epicare.policies import BasePolicy
-from epicare.utils import get_cutoff, load_custom_dataset
 from torch.nn.utils.rnn import pad_sequence
 from tqdm.auto import tqdm
+
+from epicare.policies import BasePolicy
+from epicare.utils import get_cutoff, load_custom_dataset
 
 
 def state_and_action_dims(env, config):
@@ -119,6 +120,7 @@ def evaluate_online(
     model.to(device)
     returns = []
     remission_rates = []
+    adverse_event_rates = []
     times_to_remission = []
 
     for _ in tqdm(range(eval_episodes), desc="Evaluating"):
@@ -128,6 +130,7 @@ def evaluate_online(
         episode_return = 0.0
         time_to_remission = None
         remission_detected = False
+        had_adverse = False
 
         prev_action = np.zeros(env.action_space.n)
         while not done:
@@ -148,13 +151,15 @@ def evaluate_online(
             # Check for remission and record time to remission
             if info.get("remission", False) and not remission_detected:
                 time_to_remission = env.visit_number
-                # Throw error if time to remission is 0
-                if time_to_remission == 0:
-                    raise ValueError("Time to remission is 0")
                 remission_detected = True
+
+            # Also log adverse events.
+            if info.get("adverse_event", False):
+                had_adverse = True
 
         returns.append(episode_return)
         remission_rates.append(1 if remission_detected else 0)
+        adverse_event_rates.append(1 / env.visit_number if had_adverse else 0)
         times_to_remission.append(
             time_to_remission if time_to_remission is not None else np.nan
         )
@@ -162,16 +167,19 @@ def evaluate_online(
     mean_return = np.mean(returns) * (100 / 64)
     std_return = np.std(returns) * (100 / 64)
     mean_remission_rate = np.mean(remission_rates)
+    mean_adverse_event_rate = np.mean(adverse_event_rates)
     mean_time_to_remission = np.nanmean(
         times_to_remission
     )  # Handle cases where remission is not achieved
     std_time_to_remission = np.nanstd(times_to_remission)
 
-    # Use a bootstrap of 50 samples to estimate the SEM.
-    n_bootstrap = 50
-    bootstrapped_returns = np.random.choice(returns, (n_bootstrap, len(returns)))
-    bootstrapped_means = np.mean(bootstrapped_returns, axis=1)
-    sem_return = np.std(bootstrapped_means)
+    def sem(x, n_bootstrap=50):
+        "Bootstrap to estimate the SEM of returns and adverse event rate."
+        boots = np.random.choice(x, (n_bootstrap, len(x)))
+        return np.std(np.mean(boots, axis=1))
+
+    sem_return = sem(returns)
+    sem_adverse_event_rate = sem(adverse_event_rates)
 
     print(f"Mean return: {mean_return} ± {sem_return}")
     print(f"Time to remission: {mean_time_to_remission}")
@@ -183,6 +191,8 @@ def evaluate_online(
         mean_remission_rate,
         mean_time_to_remission,
         std_time_to_remission,
+        mean_adverse_event_rate,
+        sem_adverse_event_rate,
     )
 
 
@@ -422,6 +432,8 @@ def process_checkpoints(
                     mean_remission_rate,
                     mean_time_to_remission,
                     std_time_to_remission,
+                    mean_adverse_event_rate,
+                    sem_adverse_event_rate,
                 ) = evaluate_online(
                     actor,
                     env,
@@ -464,6 +476,8 @@ def process_checkpoints(
                     "mean_remission_rate": mean_remission_rate,
                     "mean_time_to_remission": mean_time_to_remission,
                     "std_time_to_remission": std_time_to_remission,
+                    "mean_adverse_event_rate": mean_adverse_event_rate,
+                    "sem_adverse_event_rate": sem_adverse_event_rate,
                 }
                 result.update(offline_estimates)
                 results.append(result)
