@@ -167,12 +167,19 @@ def evaluate_online(
     )  # Handle cases where remission is not achieved
     std_time_to_remission = np.nanstd(times_to_remission)
 
-    print(f"Mean return: {mean_return}")
+    # Use a bootstrap of 50 samples to estimate the SEM.
+    n_bootstrap = 50
+    bootstrapped_returns = np.random.choice(returns, (n_bootstrap, len(returns)))
+    bootstrapped_means = np.mean(bootstrapped_returns, axis=1)
+    sem_return = np.std(bootstrapped_means)
+
+    print(f"Mean return: {mean_return} ± {sem_return}")
     print(f"Time to remission: {mean_time_to_remission}")
 
     return (
         mean_return,
         std_return,
+        sem_return,
         mean_remission_rate,
         mean_time_to_remission,
         std_time_to_remission,
@@ -358,6 +365,7 @@ def process_checkpoints(
     wrap_env,
     eval_episodes=2000,
     do_ope=True,
+    eval_all=False,
     out_name=None,
 ):
     results = []
@@ -386,12 +394,10 @@ def process_checkpoints(
                     num_checkpoints = 1
             config = TrainConfig().update_params(config_dict)
             # Iterate over checkpoint files within the directory
-            for i in range(1, num_checkpoints + 1):
-                # if num_checkpoints == 1:
-                #    checkpoint_file = "checkpoint.pt"
-                # else:
-                checkpoint_file = f"checkpoint_{i-1}.pt"
-                fraction_of_steps = i / num_checkpoints
+            checkpoints = range(num_checkpoints) if eval_all else [num_checkpoints - 1]
+            for i in checkpoints:
+                checkpoint_file = f"checkpoint_{i}.pt"
+                fraction_of_steps = (i + 1) / num_checkpoints
                 checkpoint_path = os.path.join(base_path, dir_name, checkpoint_file)
 
                 # Loading model and environment
@@ -412,6 +418,7 @@ def process_checkpoints(
                 (
                     mean_return,
                     std_return,
+                    sem_return,
                     mean_remission_rate,
                     mean_time_to_remission,
                     std_time_to_remission,
@@ -453,6 +460,7 @@ def process_checkpoints(
                     "fraction_of_steps": fraction_of_steps,
                     "mean_return": mean_return,
                     "std_return": std_return,
+                    "sem_return": sem_return,
                     "mean_remission_rate": mean_remission_rate,
                     "mean_time_to_remission": mean_time_to_remission,
                     "std_time_to_remission": std_time_to_remission,
@@ -473,25 +481,32 @@ def process_checkpoints(
     return results_df
 
 
-def combine_stats(data, mean_key="mean_return", std_key="std_return"):
+def combine_stats(data):
     grouped_data = data.groupby("env_seed")
-    combined_means = grouped_data[mean_key].mean()
 
     def pooled_std(group):
         size = len(group)
-        return np.sqrt((group[std_key] ** 2).sum() / size)
+        return np.sqrt((group["std_return"] ** 2).sum() / size)
 
+    combined_means = grouped_data["mean_return"].mean()
     combined_stds = grouped_data.apply(pooled_std)
+    combined_sems = grouped_data["sem_return"].mean()
+
     combined_stats = pd.DataFrame(
-        {"combined_mean": combined_means, "combined_std": combined_stds}
+        {
+            "combined_mean": combined_means,
+            "combined_std": combined_stds,
+            "combined_sem": combined_sems,
+        }
     ).reset_index()
     print(combined_stats)
     return combined_stats
 
 
 def grand_stats(df):
-    size = len(df)
     grand_mean = df["combined_mean"].mean()
-    grand_std = np.sqrt((df["combined_std"] ** 2).sum() / size)
+    grand_std = np.sqrt((df["combined_std"] ** 2).sum() / len(df))
+    grand_sem = df["combined_sem"].mean()
     print(f"Grand mean: {grand_mean}")
     print(f"Grand std: {grand_std}")
+    print(f"Grand sem: {grand_sem}")
