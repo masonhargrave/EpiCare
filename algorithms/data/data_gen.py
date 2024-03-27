@@ -1,23 +1,18 @@
+import argparse
+import os
 from multiprocessing import Pool
 
 import h5py
 import numpy as np
 from epicare.envs import EpiCare
-from epicare.policies import ClinicalTrial
-
-# Set range of seeds to generate data for
-seeds = range(1, 9)
-
-# Number of episodes you want to run
-num_episodes = 65536 * 2
+from epicare.policies import ClinicalTrial, Oracle, Random, StandardOfCare
 
 
 def generate_one(seed, prefix):
     # Initialize environment
     env = EpiCare(seed=seed)
 
-    # Choose the policy type here based on your needs
-    policy = ClinicalTrial(env)
+    policy = policy_factory(env)
 
     data = {
         "observations": [],
@@ -28,7 +23,7 @@ def generate_one(seed, prefix):
         "next_observations": [],
     }
 
-    for episode in range(num_episodes):
+    for episode in range(args.num_episodes):
         policy.reset()
         obs = env.reset()
         done = False
@@ -59,7 +54,9 @@ def generate_one(seed, prefix):
         data[key] = np.array(data[key])
 
     # Create filename based on seed
-    filename = f"{prefix}_seed_{seed}.hdf5"
+    filename = f"{args.policy}/{prefix}_seed_{seed}.hdf5"
+    if not os.path.exists(os.path.dirname(filename)):
+        os.makedirs(os.path.dirname(filename))
 
     # Save the data as an HDF5 file
     with h5py.File(filename, "w") as f:
@@ -69,7 +66,42 @@ def generate_one(seed, prefix):
     print("Generated", filename)
 
 
-todo = [(seed, prefix) for seed in seeds for prefix in ("train", "test")]
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--num-episodes",
+        type=int,
+        default=65536 * 2,
+        help="Number of episodes to generate",
+    )
+    parser.add_argument(
+        "--seeds",
+        type=int,
+        default=8,
+        help="Number of seeds to use for data generation",
+    )
+    parser.add_argument(
+        "--policy",
+        choices=["random", "smart", "soc", "oracle"],
+        default="smart",
+        help="Which policy to use for data generation",
+    )
+    args = parser.parse_args()
 
-with Pool(12) as p:
-    p.starmap(generate_one, todo)
+    policy_factory = dict(
+        random=Random,
+        smart=ClinicalTrial,
+        soc=StandardOfCare,
+        oracle=Oracle,
+    )[args.policy]
+
+    print(
+        f"Generating {args.seeds} seeds × {args.num_episodes} episodes"
+        f"of training and test data from {args.policy}"
+    )
+
+    todo = [
+        (seed + 1, prefix) for seed in range(args.seeds) for prefix in ("train", "test")
+    ]
+    with Pool(12) as p:
+        p.starmap(generate_one, todo)
