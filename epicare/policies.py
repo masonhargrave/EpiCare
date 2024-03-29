@@ -130,8 +130,8 @@ class Oracle(BasePolicy):
     def get_treatment(self, observation):
         # Calculate the expected reward for each treatment in this state.
         expected_rewards = {
-            i: self.env.expected_instantaneous_reward(self.env.current_disease, action)
-            for i, action in enumerate(self.env.treatments)
+            action: self.env.expected_instantaneous_reward(self.env.current_disease, action)
+            for action in range(env.n_treatments)
         }
 
         # Find the treatment with the highest expected reward
