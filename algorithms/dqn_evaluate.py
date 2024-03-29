@@ -4,7 +4,7 @@ import epicare.evaluations as evaluations
 import gym
 import torch
 
-from dqn import FullyConnectedQFunction, Policy, TrainConfig, wrap_env
+from dqn import FullyConnectedQFunction, TrainConfig, wrap_env
 
 
 def load_model(checkpoint_path, config):
@@ -17,7 +17,7 @@ def load_model(checkpoint_path, config):
     # Load the state dictionary
     state_dict = torch.load(checkpoint_path)
     q.load_state_dict(state_dict["q"])
-    return Policy(q, config.device)
+    return FullyConnectedQFunction(state_dim, action_dim)
 
 
 if __name__ == "__main__":

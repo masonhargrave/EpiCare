@@ -122,12 +122,23 @@ class Policy(nn.Module):
         self.q2 = q2
         self.device = device
 
-    def act(self, state: np.ndarray, device: str) -> np.ndarray:
+    def act(self, state: np.ndarray, device) -> np.ndarray:
         state = torch.tensor(state, dtype=torch.float32, device=device)
         with torch.no_grad():
             q1 = self.q1(state)
             q2 = self.q2(state)
         return torch.min(q1, q2).cpu().numpy()
+
+    def get_action_probabilities(self, state: torch.Tensor) -> torch.Tensor:
+        state = torch.tensor(state, dtype=torch.float32, device=self.device)
+        with torch.no_grad():
+            q1 = self.q1(state)
+            q2 = self.q2(state)
+        # get action
+        q = torch.min(q1, q2)
+        action = torch.argmax(q, dim=-1)
+        # one-hot encode the action
+        return F.one_hot(action, num_classes=q.shape[-1])
 
 
 class DiscreteCQL:

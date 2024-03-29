@@ -11,6 +11,7 @@ import numpy as np
 import pyrallis
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import yaml
 from epicare.envs import EpiCare  # noqa: F401
 
@@ -113,6 +114,11 @@ class FullyConnectedQFunction(nn.Module):
         with torch.no_grad():
             return self(state).cpu().numpy()
 
+    def get_action_probabilities(self, observations: torch.Tensor) -> torch.Tensor:
+        q = self(observations)
+        action = torch.argmax(q, dim=-1)
+        return F.one_hot(action, num_classes=self.action_dim)
+
 
 class DeepQNetwork:
     def __init__(
@@ -165,6 +171,10 @@ class DeepQNetwork:
         self.total_it = state_dict["total_it"]
         self.q.load_state_dict(state_dict["q"])
         self.q_optimizer.load_state_dict(state_dict["q_optimizer"])
+
+    def get_action_probabilities(self, observations: torch.Tensor) -> torch.Tensor:
+        logits = self.q(observations)
+        return torch.softmax(logits, dim=-1)
 
 
 def load_custom_dataset(config: TrainConfig) -> Dict[str, np.ndarray]:
