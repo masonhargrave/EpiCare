@@ -36,4 +36,19 @@ parameters:
   eval_freq:
     values:
       - 500
+  iql_tau:
+    values:
+      - 0.9
+  beta:
+    values:
+      - 3.0
+  actor_dropout:
+    values:
+      - 0.1
+  frame_stack:
+    values:
+      - 8
+  include_previous_action:
+    values:
+      - True
 program: iql.py

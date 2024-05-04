@@ -33,4 +33,16 @@ parameters:
       - 128
       - 64
       - 32
+  alpha:
+    values:
+      - 1.0
+  frame_stack:
+    values:
+      - 8
+  include_previous_action:
+    values:
+      - True
+  qf_lr:
+    values:
+      - 1e-4
 program: cql_dqn.py

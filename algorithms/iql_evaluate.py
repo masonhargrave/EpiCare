@@ -15,7 +15,6 @@ def load_model(checkpoint_path, config):
     actor = Policy(
         state_dim,
         action_dim,
-        temperature=config.temperature,
         dropout=config.actor_dropout,
     ).to(config.device)
 

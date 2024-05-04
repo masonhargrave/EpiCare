@@ -12,13 +12,6 @@ parameters:
   env_seed:
     values:
       - 1
-      - 2
-      - 3
-      - 4
-      - 5
-      - 6
-      - 7
-      - 8
   awac_lambda:
     values:
       - 0.3
@@ -31,4 +24,7 @@ parameters:
   num_checkpoints:
     values:
       - 32
+  behavior_policy:
+    values:
+      - "soc"
 program: awac.py

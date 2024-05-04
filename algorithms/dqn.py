@@ -56,6 +56,7 @@ class TrainConfig:
         self.dataset_path = (
             f"./data/{self.behavior_policy}/train_seed_{self.env_seed}.hdf5"
         )
+        self.checkpoints_path = f"./{self.behavior_policy}_checkpoints"
         self.name = f"{self.name}-{self.env}-{self.seed}-{self.env_seed}-{str(uuid.uuid4())[:8]}"
         if self.checkpoints_path is not None:
             self.checkpoints_path = os.path.join(self.checkpoints_path, self.name)
@@ -579,7 +580,7 @@ def train(config: TrainConfig):
 
 
 if __name__ == "__main__":
-    with open("./sweep_configs/hp_sweeps/dqn_sweep_config.yaml", "r") as f:
+    with open("./sweep_configs/all_data_sweeps/dqn_final_config.yaml", "r") as f:
         sweep_config = yaml.load(f, Loader=yaml.FullLoader)
 
     # Start a new wandb run

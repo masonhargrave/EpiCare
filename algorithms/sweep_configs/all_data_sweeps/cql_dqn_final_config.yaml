@@ -12,13 +12,6 @@ parameters:
   env_seed:
     values:
       - 1
-      - 2
-      - 3
-      - 4
-      - 5
-      - 6
-      - 7
-      - 8
   alpha:
     values:
       - 1.0
@@ -27,8 +20,14 @@ parameters:
       - 8
   include_previous_action:
     values:
-      - False
+      - True
   qf_lr:
     values:
       - 1e-4
+  behavior_policy:
+    values:
+      - "soc"
+  num_checkpoints:
+    values:
+      - 1
 program: cql_dqn.py

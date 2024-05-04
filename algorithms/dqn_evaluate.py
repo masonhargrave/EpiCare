@@ -17,7 +17,7 @@ def load_model(checkpoint_path, config):
     # Load the state dictionary
     state_dict = torch.load(checkpoint_path)
     q.load_state_dict(state_dict["q"])
-    return FullyConnectedQFunction(state_dim, action_dim)
+    return q
 
 
 if __name__ == "__main__":

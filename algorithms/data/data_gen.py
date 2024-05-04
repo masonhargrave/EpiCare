@@ -101,7 +101,7 @@ if __name__ == "__main__":
 
     print(
         f"Generating {args.seeds} seeds × {args.num_episodes} episodes",
-        f"of training and test data from {args.policy}"
+        f"of training and test data from {args.policy}",
     )
 
     todo = [
