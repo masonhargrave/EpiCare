@@ -467,7 +467,8 @@ def process_checkpoints(
 
                 result = {
                     "env_seed": config.env_seed,
-                    "episodes_avail": getattr(config, "episodes_avail", None),
+                    "seed": config.seed,
+                    "behavior_policy": config.behavior_policy,
                     "checkpoint": checkpoint_file,
                     "fraction_of_steps": fraction_of_steps,
                     "mean_return": mean_return,
@@ -479,6 +480,8 @@ def process_checkpoints(
                     "mean_adverse_event_rate": mean_adverse_event_rate,
                     "sem_adverse_event_rate": sem_adverse_event_rate,
                 }
+                if hasattr(config, "episodes_avail"):
+                    result["episodes_avail"] = config.episodes_avail
                 result.update(offline_estimates)
                 results.append(result)
 
