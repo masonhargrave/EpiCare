@@ -73,7 +73,7 @@ class TrainConfig:
     # frame stacking memory
     frame_stack: int = 8
     # behavior policy
-    behavior_policy: str = "soc"
+    behavior_policy: str = "smart"
     # include previous action in the observation
     include_previous_action: bool = False
 
@@ -676,11 +676,13 @@ def train(config: TrainConfig):
 
 
 if __name__ == "__main__":
-    with open("./sweep_configs/all_data_sweeps/td3_bc_final_config.yaml", "r") as f:
+    with open(
+        "./sweep_configs/data_restriction_sweeps/td3_bc_restriction_config.yaml", "r"
+    ) as f:
         sweep_config = yaml.load(f, Loader=yaml.FullLoader)
 
     # Start a new wandb run
-    run = wandb.init(config=sweep_config, group="TD3_BC-EpiCare_final")
+    run = wandb.init(config=sweep_config, group="TD3_BC-EpiCare_restrictions")
 
     # Update the TrainConfig instance with parameters from wandb
     # This assumes that update_params will handle single value parameters correctly

@@ -26,7 +26,7 @@ parameters:
       - 1e-4
   behavior_policy:
     values:
-      - "soc"
+      - "smart"
   num_checkpoints:
     values:
       - 1

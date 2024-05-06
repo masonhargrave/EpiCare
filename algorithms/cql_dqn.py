@@ -45,7 +45,7 @@ class TrainConfig:
     name: str = "CQL-DQN"
     project: str = "CQL-DQN-Benchmark"
     group: str = "CQL-DQN-EpiCare"
-    behavior_policy: str = "soc"  # Behavior policy for data collection
+    behavior_policy: str = "smart"  # Behavior policy for data collection
     # include previous action in the observation
     include_previous_action: bool = True
 
