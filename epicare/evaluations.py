@@ -1,5 +1,6 @@
 import functools
 import os
+from glob import glob
 from pathlib import Path
 from typing import Tuple
 
@@ -196,8 +197,8 @@ def evaluate_online(
     )
 
 
-def calculate_estimators(ratio_0pad, ratio_1pad, reward, discount=1.0):
-    "Calculate specifically the importance-sampling estimators for OPE."
+def importance_sampling(ratio_0pad, ratio_1pad, reward, discount=1.0):
+    "Calculate importance-sampling estimators for OPE."
 
     discount = torch.tensor([discount**t for t in range(reward.size(0))]).view(-1, 1)
     discounted_reward = reward * discount
@@ -284,6 +285,7 @@ def evaluate_offline(
     h5py_filename,
     config,
     eval_policy,
+    q_nets=[],
     device="cuda",
     discount=1.0,
     num_folds=8,
@@ -329,9 +331,9 @@ def evaluate_offline(
         device=device,
     )
     with torch.no_grad():
-        all_eval_probs = eval_policy.get_action_probabilities(fss).squeeze(0).cpu()
+        all_eval_probs = eval_policy.get_action_probabilities(fss)
 
-    eval_probs = all_eval_probs.gather(-1, actions.unsqueeze(-1)).squeeze(-1)
+    eval_probs = all_eval_probs.cpu().gather(-1, actions.unsqueeze(-1)).squeeze()
     ratio = eval_probs / behavior_probs
 
     # Compute the log probabilities of actions under the evaluation policy
@@ -343,6 +345,8 @@ def evaluate_offline(
     ratio_1pad = dataset2episodes(ratio, pad=1)
     rewards = dataset2episodes(rewards, pad=0)
 
+    # Use bootstrapping to produce multiple different OPE estimates using importance
+    # sampling so we can show it's not just a question of variance.
     results = {"MeanLogProb": []}
     for i in tqdm(range(num_folds)):
         # Randomly sample trajectory indices with replacement
@@ -357,14 +361,39 @@ def evaluate_offline(
         mean_log_prob = log_eval_probs_sub.sum(dim=0) / torch.tensor(episode_lengths)
         results["MeanLogProb"].append(mean_log_prob.mean().item())
 
-        estimators = calculate_estimators(ratio_0pad_sub, ratio_1pad_sub, rewards_sub)
+        estimators = importance_sampling(ratio_0pad_sub, ratio_1pad_sub, rewards_sub)
         for estimator in estimators:
             if estimator not in results:
                 results[estimator] = []
             results[estimator].append(estimators[estimator])
 
+    # Some sort of direct OPE method that I'm not sure is principled: calculate the mean
+    # Q of actions chosen by the evaluation policy for each of the provided Q networks.
+    all_qvals = []
+    if q_nets:
+        for q_net in q_nets:
+            # TODO: is mean Q even the right thing to calculate here?
+            with torch.no_grad():
+                mean_q = torch.sum(q_net(fss) * all_eval_probs, dim=-1).mean()
+                all_qvals.append(mean_q.cpu().item())
+
+    if all_qvals:
+        results["MeanQ"] = all_qvals
     print(results)
     return results
+
+
+def load_q_nets(base_path, config, dqn_evaluate):
+    # Get the checkpoint path for DQNs for evaluating this environment.
+    checkpoint_path = os.path.join(
+        base_path, f"OPE-DQNs-{config.env}-{config.env_seed}"
+    )
+    with open(os.path.join(checkpoint_path, "config.yaml")) as f:
+        config_dict = yaml.load(f, Loader=yaml.FullLoader)
+        config = dqn_evaluate.TrainConfig().update_params(config_dict)
+
+    checkpoints = glob(os.path.join(checkpoint_path, "*.pt"))
+    return [dqn_evaluate.load_model(checkpoint, config) for checkpoint in checkpoints]
 
 
 def process_checkpoints(
@@ -373,8 +402,8 @@ def process_checkpoints(
     TrainConfig,
     load_model,
     wrap_env,
+    dqn_evaluate=None,
     eval_episodes=2000,
-    do_ope=True,
     eval_all=False,
     out_name=None,
 ):
@@ -423,6 +452,10 @@ def process_checkpoints(
                 env_name = config.env if hasattr(config, "env") else config.env_name
                 env = gym.make(env_name, seed=config.env_seed)
                 env = wrap_env(env, state_mean=state_mean, state_std=state_std)
+                if dqn_evaluate:
+                    q_nets = load_q_nets(base_path, config, dqn_evaluate)
+                else:
+                    q_nets = None
 
                 # Online evaluation
                 (
@@ -443,27 +476,27 @@ def process_checkpoints(
                     config.include_previous_action,
                 )
 
-                # Offline evaluation (if applicable)
+                # Offline evaluation
                 offline_estimates = {}
-                if do_ope:
-                    hdf5_path = os.path.join(
-                        "data/smart", f"test_seed_{config.env_seed}.hdf5"
-                    )
-                    estimates = evaluate_offline(
-                        hdf5_path,
-                        config,
-                        actor,
-                        device=config.device,
-                        discount=1.0,
-                    )
-                    for estimator in estimates:
-                        key = estimator.lower()
-                        offline_estimates[f"mean_{key}_estimate"] = np.mean(
-                            estimates[estimator]
-                        ) * (100 / 64)
-                        offline_estimates[f"std_{key}_estimate"] = np.std(
-                            estimates[estimator]
-                        ) * (100 / 64)
+                hdf5_path = os.path.join(
+                    "data/smart", f"test_seed_{config.env_seed}.hdf5"
+                )
+                estimates = evaluate_offline(
+                    hdf5_path,
+                    config,
+                    actor,
+                    q_nets,
+                    device=config.device,
+                    discount=1.0,
+                )
+                for estimator in estimates:
+                    key = estimator.lower()
+                    offline_estimates[f"mean_{key}_estimate"] = np.mean(
+                        estimates[estimator]
+                    ) * (100 / 64)
+                    offline_estimates[f"std_{key}_estimate"] = np.std(
+                        estimates[estimator]
+                    ) * (100 / 64)
 
                 result = {
                     "env_seed": config.env_seed,

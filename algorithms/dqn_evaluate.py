@@ -1,10 +1,11 @@
 import argparse
 
-import epicare.evaluations as evaluations
+import dqn_evaluate
 import gym
 import torch
-
 from dqn import FullyConnectedQFunction, TrainConfig, wrap_env
+
+import epicare.evaluations as evaluations
 
 
 def load_model(checkpoint_path, config):
@@ -17,6 +18,7 @@ def load_model(checkpoint_path, config):
     # Load the state dictionary
     state_dict = torch.load(checkpoint_path)
     q.load_state_dict(state_dict["q"])
+    q.eval()
     return q
 
 
@@ -33,6 +35,7 @@ if __name__ == "__main__":
         load_model,
         wrap_env,
         out_name=args.out_name,
+        dqn_evaluate=dqn_evaluate,
     )
 
     combined_stats_df = evaluations.combine_stats(results_df)

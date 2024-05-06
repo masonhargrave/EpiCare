@@ -1,10 +1,11 @@
 import argparse
 
-import epicare.evaluations as evaluations
+import dqn_evaluate
 import gym
 import torch
-
 from awac import Actor, TrainConfig, wrap_env
+
+import epicare.evaluations as evaluations
 
 
 def load_model(checkpoint_path, config):
@@ -31,6 +32,7 @@ if __name__ == "__main__":
         load_model,
         wrap_env,
         out_name=args.out_name,
+        dqn_evaluate=dqn_evaluate,
     )
 
     combined_stats_df = evaluations.combine_stats(results_df)
