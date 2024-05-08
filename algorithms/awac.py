@@ -31,7 +31,7 @@ class TrainConfig:
     # wandb run name
     name: str = "AWAC"
     # training dataset and evaluation environment
-    env_name: str = "EpiCare-v0"
+    env: str = "EpiCare-v0"
     # actor and critic hidden dim
     hidden_dim: int = 256
     # actor and critic learning rate

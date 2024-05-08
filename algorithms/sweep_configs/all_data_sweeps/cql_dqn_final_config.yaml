@@ -29,5 +29,5 @@ parameters:
       - "smart"
   num_checkpoints:
     values:
-      - 1
+      - 32
 program: cql_dqn.py
