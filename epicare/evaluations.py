@@ -230,9 +230,7 @@ def importance_sampling(ratio_0pad, ratio_1pad, reward, discount=1.0):
 
 
 @functools.lru_cache(maxsize=1)
-def load_dataset(
-    h5py_filename, cutoff, frame_stack, include_previous_action, device="cuda"
-):
+def load_dataset(h5py_filename, cutoff, frame_stack, device="cuda"):
     with h5py.File(h5py_filename, "r") as dataset:
         print(f"Using cutoff: {cutoff}")
         observations = np.array(dataset["observations"][:cutoff])
@@ -262,23 +260,32 @@ def load_dataset(
             for j in range(i, min(i + frame_stack, end)):
                 fss[j, j - i] = obs_tensor[i]
 
-    # Squish the observations, and THEN add the previous action if
-    # necessary.
+    # Squish the observations and return everything.
     fss = fss.view(n_samples, -1)
-    if include_previous_action:
-        prev_actions = (
-            torch.where(
-                torch.tensor(terminals, dtype=bool),
-                torch.zeros_like(actions),
-                actions,
-            )
-            .roll(1, dims=0)
-            .to(device)
-        )
-        ohe_actions = torch.nn.functional.one_hot(prev_actions)
-        fss = torch.cat([fss, ohe_actions], dim=-1)
+    return (
+        fss,
+        actions,
+        rewards,
+        behavior_probs,
+        episode_lengths,
+        terminals,
+        n_trajectories,
+    )
 
-    return fss, actions, rewards, behavior_probs, episode_lengths, n_trajectories
+
+def add_previous_action(fss, actions, terminals, device):
+    prev_actions = (
+        torch.where(
+            torch.tensor(terminals, dtype=bool),
+            torch.zeros_like(actions),
+            actions,
+        )
+        .roll(1, dims=0)
+        .to(device)
+    )
+    ohe_actions = torch.nn.functional.one_hot(prev_actions)
+    fss_full = torch.cat([fss, ohe_actions], dim=-1)
+    return fss_full
 
 
 def evaluate_offline(
@@ -322,14 +329,19 @@ def evaluate_offline(
         rewards,
         behavior_probs,
         episode_lengths,
+        terminals,
         n_trajectories,
     ) = load_dataset(
         h5py_filename,
         cutoff,
         config.frame_stack,
-        config.include_previous_action,
         device=device,
     )
+
+    fss_full = add_previous_action(fss, actions, terminals, device)
+    if config.include_previous_action:
+        fss = fss_full
+
     with torch.no_grad():
         all_eval_probs = eval_policy.get_action_probabilities(fss)
 
@@ -367,18 +379,16 @@ def evaluate_offline(
                 results[estimator] = []
             results[estimator].append(estimators[estimator])
 
-    # Some sort of direct OPE method that I'm not sure is principled: calculate the mean
-    # Q of actions chosen by the evaluation policy for each of the provided Q networks.
-    all_qvals = []
+    # Implement an ad-hoc OPE method that averages the Q values across all steps.
+    meanq_vals = []
     if q_nets:
         for q_net in q_nets:
-            # TODO: is mean Q even the right thing to calculate here?
             with torch.no_grad():
-                mean_q = torch.sum(q_net(fss) * all_eval_probs, dim=-1).mean()
-                all_qvals.append(mean_q.cpu().item())
+                q_every_step = torch.sum(q_net(fss_full) * all_eval_probs, dim=-1)
+                meanq_vals.append(q_every_step.mean().cpu().item())
 
-    if all_qvals:
-        results["MeanQ"] = all_qvals
+        results["MeanQ"] = meanq_vals
+
     print(results)
     return results
 
