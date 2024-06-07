@@ -1,5 +1,6 @@
 # source: https://github.com/sfujim/TD3_BC
 # https://arxiv.org/pdf/2106.06860.pdf
+import argparse
 import copy
 import os
 import random
@@ -15,9 +16,12 @@ import pyrallis
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import wandb
 import yaml
+from epicare import evaluations
 from epicare.envs import EpiCare  # noqa: F401
+
+import wandb
+from drn import load_q_nets
 
 TensorBatch = List[torch.Tensor]
 
@@ -675,19 +679,69 @@ def train(config: TrainConfig):
             checkpoint_num += 1
 
 
+def load_model(checkpoint_path, config):
+    # Create an environment to get state_dim and action_dim
+    env = gym.make(config.env, seed=config.env_seed)
+    state_dim, action_dim = evaluations.state_and_action_dims(env, config)
+
+    # Initialize the actor with the correct dimensions
+    actor = Actor(state_dim, action_dim, config.temperature).to(config.device)
+    state_dict = torch.load(checkpoint_path)
+    actor.load_state_dict(state_dict["actor"])
+
+    return actor
+
+
 if __name__ == "__main__":
-    with open(
-        "./sweep_configs/data_restriction_sweeps/td3_bc_restriction_config.yaml", "r"
-    ) as f:
-        sweep_config = yaml.load(f, Loader=yaml.FullLoader)
+    base_parser = argparse.ArgumentParser(add_help=False)
+    subparsers = base_parser.add_subparsers(title="subcommands", dest="subcommand")
 
-    # Start a new wandb run
-    run = wandb.init(config=sweep_config, group="TD3_BC-EpiCare_restrictions")
+    eval_parser = subparsers.add_parser("eval", help="Evaluate all trained checkpoints")
+    eval_parser.add_argument(
+        "--base-path", type=str, metavar="NAME", help="path to the checkpoint directory"
+    )
+    eval_parser.add_argument(
+        "--out-name", type=str, metavar="NAME", help="name of the results file"
+    )
 
-    # Update the TrainConfig instance with parameters from wandb
-    # This assumes that update_params will handle single value parameters correctly
-    config = TrainConfig()
-    config.update_params(dict(wandb.config))
+    train_parser = subparsers.add_parser("train", help="Train an instance of the model")
 
-    # Now pass the updated config to the train function
-    train(config)
+    args = base_parser.parse_args()
+
+    if args.subcommand == "eval":
+        results_df = evaluations.process_checkpoints(
+            args.base_path,
+            "TD3_BC",
+            TrainConfig,
+            load_model,
+            wrap_env,
+            out_name=args.out_name,
+            load_q_nets=load_q_nets,
+        )
+        if len(results_df) == 0:
+            print("No results to evaluate")
+            exit(1)
+
+        combined_stats_df = evaluations.combine_stats(results_df)
+        evaluations.grand_stats(combined_stats_df)
+
+    elif args.subcommand == "train":
+        with open(
+            "./sweep_configs/data_restriction_sweeps/td3_bc_restriction_config.yaml",
+            "r",
+        ) as f:
+            sweep_config = yaml.load(f, Loader=yaml.FullLoader)
+
+        # Start a new wandb run
+        run = wandb.init(config=sweep_config, group="TD3_BC-EpiCare_restrictions")
+
+        # Update the TrainConfig instance with parameters from wandb
+        # This assumes that update_params will handle single value parameters correctly
+        config = TrainConfig()
+        config.update_params(dict(wandb.config))
+
+        # Now pass the updated config to the train function
+        train(config)
+
+    else:
+        base_parser.print_help()

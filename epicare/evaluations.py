@@ -1,6 +1,5 @@
 import functools
 import os
-from glob import glob
 from pathlib import Path
 from typing import Tuple
 
@@ -10,11 +9,10 @@ import numpy as np
 import pandas as pd
 import torch
 import yaml
-from torch.nn.utils.rnn import pad_sequence
-from tqdm.auto import tqdm
-
 from epicare.policies import BasePolicy
 from epicare.utils import get_cutoff, load_custom_dataset
+from torch.nn.utils.rnn import pad_sequence
+from tqdm.auto import tqdm
 
 
 def state_and_action_dims(env, config):
@@ -395,26 +393,13 @@ def evaluate_offline(
     return results
 
 
-def load_q_nets(base_path, config, drn_evaluate):
-    # Get the checkpoint path for DRNs for evaluating this environment.
-    checkpoint_path = os.path.join(
-        base_path, f"OPE-DRNs-{config.env}-{config.env_seed}"
-    )
-    with open(os.path.join(checkpoint_path, "config.yaml")) as f:
-        config_dict = yaml.load(f, Loader=yaml.FullLoader)
-        config = drn_evaluate.TrainConfig().update_params(config_dict)
-
-    checkpoints = glob(os.path.join(checkpoint_path, "*.pt"))
-    return [drn_evaluate.load_model(checkpoint, config) for checkpoint in checkpoints]
-
-
 def process_checkpoints(
     base_path,
     model_name,
     TrainConfig,
     load_model,
     wrap_env,
-    drn_evaluate=None,
+    load_q_nets=None,
     eval_episodes=2000,
     eval_all=False,
     out_name=None,
@@ -464,10 +449,7 @@ def process_checkpoints(
                 env_name = config.env if hasattr(config, "env") else config.env_name
                 env = gym.make(env_name, seed=config.env_seed)
                 env = wrap_env(env, state_mean=state_mean, state_std=state_std)
-                if drn_evaluate:
-                    q_nets = load_q_nets(base_path, config, drn_evaluate)
-                else:
-                    q_nets = None
+                q_nets = load_q_nets(base_path, config) if load_q_nets else None
 
                 # Online evaluation
                 (

@@ -1,7 +1,9 @@
+import argparse
 import os
 import random
 import uuid
 from dataclasses import asdict, dataclass
+from glob import glob
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -13,6 +15,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import yaml
+from epicare import evaluations
 from epicare.envs import EpiCare  # noqa: F401
 
 import wandb
@@ -577,17 +580,87 @@ def train(config: TrainConfig):
             checkpoint_num += 1
 
 
+def load_model(checkpoint_path, config):
+    env = gym.make(config.env)
+    state_dim, action_dim = evaluations.state_and_action_dims(env, config)
+
+    # Initialize the policy model
+    q = FullyConnectedQFunction(state_dim, action_dim).to(config.device)
+
+    # Load the state dictionary
+    state_dict = torch.load(checkpoint_path)
+    q.load_state_dict(state_dict["q"])
+    q.eval()
+    return q
+
+
+def load_q_nets(base_path, config):
+    # Get the checkpoint path for DRNs for evaluating this environment.
+    checkpoint_path = os.path.join(
+        base_path, f"OPE-DRNs-{config.env}-{config.env_seed}"
+    )
+
+    # Try loading the config, warning but continuing if missing.
+    try:
+        with open(os.path.join(checkpoint_path, "config.yaml")) as f:
+            config_dict = yaml.load(f, Loader=yaml.FullLoader)
+            config = TrainConfig().update_params(config_dict)
+    except FileNotFoundError:
+        print(f"OPE DRN config not found in {checkpoint_path}. Will not run DM.")
+        return []
+
+    # If we found the config, load all the models we can find.
+    checkpoints = glob(os.path.join(checkpoint_path, "*.pt"))
+    return [load_model(checkpoint, config) for checkpoint in checkpoints]
+
+
 if __name__ == "__main__":
-    with open("./sweep_configs/all_data_sweeps/dqn_final_config.yaml", "r") as f:
-        sweep_config = yaml.load(f, Loader=yaml.FullLoader)
+    base_parser = argparse.ArgumentParser(add_help=False)
+    subparsers = base_parser.add_subparsers(title="subcommands", dest="subcommand")
 
-    # Start a new wandb run
-    run = wandb.init(config=sweep_config, group="DRN_EpiCare_final")
+    eval_parser = subparsers.add_parser("eval", help="Evaluate all trained checkpoints")
+    eval_parser.add_argument(
+        "--base-path", type=str, metavar="NAME", help="path to the checkpoint directory"
+    )
+    eval_parser.add_argument(
+        "--out-name", type=str, metavar="NAME", help="name of the results file"
+    )
 
-    # Update the TrainConfig instance with parameters from wandb
-    # This assumes that update_params will handle single value parameters correctly
-    config = TrainConfig()
-    config.update_params(dict(wandb.config))
+    train_parser = subparsers.add_parser("train", help="Train an instance of the model")
 
-    # Now pass the updated config to the train function
-    train(config)
+    args = base_parser.parse_args()
+
+    if args.subcommand == "eval":
+        results_df = evaluations.process_checkpoints(
+            args.base_path,
+            "DRN",
+            TrainConfig,
+            load_model,
+            wrap_env,
+            out_name=args.out_name,
+            load_q_nets=load_q_nets,
+        )
+        if len(results_df) == 0:
+            print("No results to evaluate")
+            exit(1)
+
+        combined_stats_df = evaluations.combine_stats(results_df)
+        evaluations.grand_stats(combined_stats_df)
+
+    elif args.subcommand == "train":
+        with open("./sweep_configs/all_data_sweeps/dqn_final_config.yaml", "r") as f:
+            sweep_config = yaml.load(f, Loader=yaml.FullLoader)
+
+        # Start a new wandb run
+        run = wandb.init(config=sweep_config, group="DRN_EpiCare_final")
+
+        # Update the TrainConfig instance with parameters from wandb
+        # This assumes that update_params will handle single value parameters correctly
+        config = TrainConfig()
+        config.update_params(dict(wandb.config))
+
+        # Now pass the updated config to the train function
+        train(config)
+
+    else:
+        base_parser.print_help()
