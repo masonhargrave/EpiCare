@@ -23,5 +23,5 @@ parameters:
       - 1
   behavior_policy:
     values:
-      - "soc"
+      - "smart"
 program: bc.py
