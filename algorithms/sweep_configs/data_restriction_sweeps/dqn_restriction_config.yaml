@@ -1,7 +1,7 @@
 method: grid
 metric:
   goal: maximize
-  name: mean_normalized_score
+  name: normalized_score_mean
 parameters:
   checkpoints_path:
     values:
@@ -22,16 +22,27 @@ parameters:
     values:
       - 131072
       - 65536
+      - 32768
+      - 16384
+      - 8192
+      - 4096
+      - 2048
+      - 1024
+      - 512
+      - 256
+      - 128
+      - 64
+      - 32
+  qf_lr:
+    values:
+      - 1e-4
   alpha:
     values:
-      - 4.0
-  temperature:
-    values:
-      - 3.0
+      - 0.0
   frame_stack:
     values:
       - 8
   include_previous_action:
     values:
       - True
-program: td3_bc.py
+program: dqn.py

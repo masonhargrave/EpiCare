@@ -1,0 +1,27 @@
+method: grid
+metric:
+  goal: maximize
+  name: normalized_scores_mean
+parameters:
+  seed:
+    values:
+      - 1
+      - 2
+      - 3
+      - 4
+  env_seed:
+    values:
+      - 1
+  include_previous_actions:
+    values:
+      - True
+  frame_stack:
+    values:
+      - 8
+  num_checkpoints:
+    values:
+      - 1
+  behavior_policy:
+    values:
+      - "soc"
+program: bc.py

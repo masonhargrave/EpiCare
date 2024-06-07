@@ -1,14 +1,8 @@
 method: grid
 metric:
   goal: maximize
-  name: mean_normalized_score
+  name: normalized_score_mean
 parameters:
-  checkpoints_path:
-    values:
-      - checkpoints_restrict
-  num_checkpoints:
-    values:
-      - 1
   seed:
     values:
       - 1
@@ -18,20 +12,29 @@ parameters:
   env_seed:
     values:
       - 1
-  episodes_avail:
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
+      - 7
+      - 8
+  qf_lr:
     values:
-      - 131072
-      - 65536
+      - 1e-4
   alpha:
     values:
-      - 4.0
-  temperature:
-    values:
-      - 3.0
+      - 0.0
   frame_stack:
     values:
       - 8
   include_previous_action:
     values:
       - True
-program: td3_bc.py
+  behavior_policy:
+    values:
+      - "smart"
+  num_checkpoints:
+    values:
+      - 32
+program: drn.py

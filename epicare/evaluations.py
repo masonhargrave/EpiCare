@@ -385,25 +385,27 @@ def evaluate_offline(
         for q_net in q_nets:
             with torch.no_grad():
                 q_every_step = torch.sum(q_net(fss_full) * all_eval_probs, dim=-1)
-                meanq_vals.append(q_every_step.mean().cpu().item())
+                meanq_vals.append(
+                    q_every_step.sum().cpu().item() / len(episode_lengths)
+                )
 
-        results["MeanQ"] = meanq_vals
+        results["Direct"] = meanq_vals
 
     print(results)
     return results
 
 
-def load_q_nets(base_path, config, dqn_evaluate):
-    # Get the checkpoint path for DQNs for evaluating this environment.
+def load_q_nets(base_path, config, drn_evaluate):
+    # Get the checkpoint path for DRNs for evaluating this environment.
     checkpoint_path = os.path.join(
-        base_path, f"OPE-DQNs-{config.env}-{config.env_seed}"
+        base_path, f"OPE-DRNs-{config.env}-{config.env_seed}"
     )
     with open(os.path.join(checkpoint_path, "config.yaml")) as f:
         config_dict = yaml.load(f, Loader=yaml.FullLoader)
-        config = dqn_evaluate.TrainConfig().update_params(config_dict)
+        config = drn_evaluate.TrainConfig().update_params(config_dict)
 
     checkpoints = glob(os.path.join(checkpoint_path, "*.pt"))
-    return [dqn_evaluate.load_model(checkpoint, config) for checkpoint in checkpoints]
+    return [drn_evaluate.load_model(checkpoint, config) for checkpoint in checkpoints]
 
 
 def process_checkpoints(
@@ -412,7 +414,7 @@ def process_checkpoints(
     TrainConfig,
     load_model,
     wrap_env,
-    dqn_evaluate=None,
+    drn_evaluate=None,
     eval_episodes=2000,
     eval_all=False,
     out_name=None,
@@ -462,8 +464,8 @@ def process_checkpoints(
                 env_name = config.env if hasattr(config, "env") else config.env_name
                 env = gym.make(env_name, seed=config.env_seed)
                 env = wrap_env(env, state_mean=state_mean, state_std=state_std)
-                if dqn_evaluate:
-                    q_nets = load_q_nets(base_path, config, dqn_evaluate)
+                if drn_evaluate:
+                    q_nets = load_q_nets(base_path, config, drn_evaluate)
                 else:
                     q_nets = None
 

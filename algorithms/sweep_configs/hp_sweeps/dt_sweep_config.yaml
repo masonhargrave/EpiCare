@@ -1,0 +1,49 @@
+method: random
+metric:
+  goal: maximize
+  name: eval/64_return_mean
+parameters:
+  batch_size:
+    values:
+      - 64
+      - 128
+  beta_2:
+    distribution: log_uniform_values
+    max: 0.999
+    min: 0.9
+  clip_grad:
+    max: 1.0
+    min: 0.25
+  learning_rate:
+    distribution: log_uniform_values
+    max: 0.001
+    min: 1e-05
+  num_heads:
+    values:
+      - 1
+      - 2
+      - 4
+      - 8
+  num_layers:
+    values:
+      - 3
+      - 4
+      - 5
+      - 6
+  warmup_steps:
+    values:
+      - 10000
+      - 100000
+  weight_decay:
+    distribution: log_uniform_values
+    max: 0.1
+    min: 0.0001
+  reward_scale:
+    distribution: log_uniform_values
+    max: 1.0
+    min: 0.001
+  temperature:
+    distribution: log_uniform_values
+    max: 10.0
+    min: 0.01
+program: dt.py

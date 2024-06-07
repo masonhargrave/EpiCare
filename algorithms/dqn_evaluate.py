@@ -1,6 +1,6 @@
 import argparse
 
-import dqn_evaluate
+import drn_evaluate
 import gym
 import torch
 from dqn import FullyConnectedQFunction, TrainConfig, wrap_env
@@ -35,7 +35,7 @@ if __name__ == "__main__":
         load_model,
         wrap_env,
         out_name=args.out_name,
-        dqn_evaluate=dqn_evaluate,
+        drn_evaluate=drn_evaluate,
     )
 
     combined_stats_df = evaluations.combine_stats(results_df)
