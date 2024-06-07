@@ -27,8 +27,14 @@ parameters:
       - 8
   include_previous_action:
     values:
-      - False
+      - True
   qf_lr:
     values:
       - 1e-4
-program: cql_sac.py
+  behavior_policy:
+    values:
+      - "smart"
+  num_checkpoints:
+    values:
+      - 32
+program: cql.py

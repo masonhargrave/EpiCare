@@ -45,4 +45,4 @@ parameters:
   qf_lr:
     values:
       - 1e-4
-program: cql_dqn.py
+program: cql.py

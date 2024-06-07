@@ -22,4 +22,4 @@ parameters:
   include_previous_action:
     values:
       - True
-program: cql_dqn.py
+program: cql.py

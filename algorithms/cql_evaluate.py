@@ -3,7 +3,7 @@ import argparse
 import drn_evaluate
 import gym
 import torch
-from cql_dqn import FullyConnectedQFunction, Policy, TrainConfig, wrap_env
+from cql import FullyConnectedQFunction, Policy, TrainConfig, wrap_env
 
 import epicare.evaluations as evaluations
 
@@ -31,7 +31,7 @@ if __name__ == "__main__":
 
     results_df = evaluations.process_checkpoints(
         args.base_path,
-        "CQL-DQN",
+        "CQL",
         TrainConfig,
         load_model,
         wrap_env,

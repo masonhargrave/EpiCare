@@ -42,9 +42,9 @@ class TrainConfig:
     qf_lr: float = 3e-05  # Critics learning rate
     q_n_hidden_layers: int = 3  # Number of hidden layers in Q networks
     seed: int = 0  # Sets Gym, PyTorch and Numpy seeds
-    name: str = "CQL-DQN"
-    project: str = "CQL-DQN-Benchmark"
-    group: str = "CQL-DQN-EpiCare"
+    name: str = "CQL"
+    project: str = "CQL-Benchmark"
+    group: str = "CQL-EpiCare"
     behavior_policy: str = "smart"  # Behavior policy for data collection
     # include previous action in the observation
     include_previous_action: bool = True
@@ -581,7 +581,7 @@ def train(config: TrainConfig):
     q2_optimizer = torch.optim.Adam(list(q2.parameters()), config.qf_lr)
 
     print("---------------------------------------")
-    print(f"Training CQL-DQN, Env: {config.env}, Seed: {seed}")
+    print(f"Training CQL, Env: {config.env}, Seed: {seed}")
     print("---------------------------------------")
 
     # Initialize trainer
@@ -664,12 +664,12 @@ def train(config: TrainConfig):
 
 if __name__ == "__main__":
     with open(
-        "./sweep_configs/data_restriction_sweeps/cql_dqn_restriction_config.yaml", "r"
+        "./sweep_configs/data_restriction_sweeps/cql_restriction_config.yaml", "r"
     ) as f:
         sweep_config = yaml.load(f, Loader=yaml.FullLoader)
 
     # Start a new wandb run
-    run = wandb.init(config=sweep_config, group="CQL-DQN_EpiCare_restriction")
+    run = wandb.init(config=sweep_config, group="CQL_EpiCare_restriction")
 
     # Update the TrainConfig instance with parameters from wandb
     # This assumes that update_params will handle single value parameters correctly
