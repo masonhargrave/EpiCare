@@ -29,8 +29,8 @@ parameters:
       - 8
   include_previous_action:
     values:
-      - False
+      - True
   behavior_policy:
     values:
-      - "soc"
+      - "smart"
 program: edac.py
