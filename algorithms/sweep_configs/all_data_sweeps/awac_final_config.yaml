@@ -17,7 +17,7 @@ parameters:
       - 0.3
   include_previous_actions:
     values:
-      - False
+      - True
   frame_stack:
     values:
       - 8
