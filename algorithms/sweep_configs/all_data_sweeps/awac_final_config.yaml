@@ -26,5 +26,5 @@ parameters:
       - 32
   behavior_policy:
     values:
-      - "soc"
+      - "smart"
 program: awac.py
