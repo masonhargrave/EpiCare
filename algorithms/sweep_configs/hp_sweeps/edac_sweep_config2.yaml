@@ -22,4 +22,5 @@ parameters:
   include_previous_action:
     values:
       - False
+      - True
 program: edac.py
