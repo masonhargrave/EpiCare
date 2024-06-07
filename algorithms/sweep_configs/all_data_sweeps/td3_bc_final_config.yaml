@@ -29,5 +29,5 @@ parameters:
       - True
   behavior_policy:
     values:
-      - "soc"
+      - "smart"
 program: td3_bc.py
