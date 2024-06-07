@@ -55,7 +55,7 @@ class TrainConfig:
     # number of episodes to run during evaluation
     n_test_episodes: int = 100
     # path for checkpoints saving, optional
-    checkpoints_path: Optional[str] = "./soc_checkpoints"
+    checkpoints_path: Optional[str] = "./checkpoints"
     # configure PyTorch to use deterministic algorithms instead
     # of nondeterministic ones
     deterministic_torch: bool = False
