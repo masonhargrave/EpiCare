@@ -21,3 +21,9 @@ parameters:
       - True
       - False
 program: dqn.py
+
+command:
+  - python
+  - ${program}
+  - train
+  - hp_sweeps/dqn_restriction_config.yaml

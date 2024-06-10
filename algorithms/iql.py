@@ -42,7 +42,7 @@ class TrainConfig:
     # wandb project name
     project: str = "IQL-Benchmark"
     # wandb group name
-    group: str = "IQL-EpiCare"
+    group: Optional[str] = ""  # DEPCRECATED
     # wandb run name
     name: str = "IQL"
     # training dataset and evaluation environment
@@ -290,7 +290,6 @@ def wandb_init(config: dict) -> None:
     wandb.init(
         config=config,
         project=config["project"],
-        group=config["group"],
         name=config["name"],
         id=str(uuid.uuid4()),
     )
@@ -846,7 +845,7 @@ if __name__ == "__main__":
             sweep_config = yaml.load(f, Loader=yaml.FullLoader)
 
         # Start a new wandb run
-        run = wandb.init(config=sweep_config, group="IQL-EpiCare-restriction")
+        run = wandb.init(config=sweep_config)
 
         # Update the TrainConfig instance with parameters from wandb
         # This assumes that update_params will handle single value parameters correctly

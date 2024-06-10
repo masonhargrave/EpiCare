@@ -25,3 +25,9 @@ parameters:
       - True
       - False
 program: td3_bc.py
+
+command:
+  - python
+  - ${program}
+  - train
+  - hp_sweeps/td3_bc_sweep_config.yaml

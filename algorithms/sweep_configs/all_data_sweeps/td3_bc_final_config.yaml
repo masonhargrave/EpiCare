@@ -31,3 +31,9 @@ parameters:
     values:
       - "smart"
 program: td3_bc.py
+
+command:
+  - python
+  - ${program}
+  - train
+  - all_data_sweeps/td3_bc_final_config.yaml

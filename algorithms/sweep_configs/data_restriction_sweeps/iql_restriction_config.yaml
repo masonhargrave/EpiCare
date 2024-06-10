@@ -40,3 +40,9 @@ parameters:
     values:
       - True
 program: iql.py
+
+command:
+  - python
+  - ${program}
+  - train
+  - data_restriction_sweeps/iql_restriction_config.yaml

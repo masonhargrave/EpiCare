@@ -38,3 +38,9 @@ parameters:
     values:
       - 32
 program: cql.py
+
+command:
+  - python
+  - ${program}
+  - train
+  - all_data_sweeps/cql_final_config.yaml

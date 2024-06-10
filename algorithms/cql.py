@@ -48,7 +48,7 @@ class TrainConfig:
     seed: int = 0  # Sets Gym, PyTorch and Numpy seeds
     name: str = "CQL"
     project: str = "CQL-Benchmark"
-    group: str = "CQL-EpiCare"
+    group: Optional[str] = ""  # DEPCRECATED
     behavior_policy: str = "smart"  # Behavior policy for data collection
     # include previous action in the observation
     include_previous_action: bool = True
@@ -481,7 +481,6 @@ def wandb_init(config: dict) -> None:
     wandb.init(
         config=config,
         project=config["project"],
-        group=config["group"],
         name=config["name"],
         id=str(uuid.uuid4()),
     )
@@ -694,6 +693,9 @@ if __name__ == "__main__":
     )
 
     train_parser = subparsers.add_parser("train", help="Train an instance of the model")
+    train_parser.add_argument(
+        "config-loc", type=str, metavar="NAME", help="location of config file"
+    )
 
     args = base_parser.parse_args()
 
@@ -715,13 +717,11 @@ if __name__ == "__main__":
         evaluations.grand_stats(combined_stats_df)
 
     elif args.subcommand == "train":
-        with open(
-            "./sweep_configs/data_restriction_sweeps/cql_restriction_config.yaml", "r"
-        ) as f:
+        with open(f"./sweep_configs/{args.config_loc}", "r") as f:
             sweep_config = yaml.load(f, Loader=yaml.FullLoader)
 
         # Start a new wandb run
-        run = wandb.init(config=sweep_config, group="CQL_EpiCare_restriction")
+        run = wandb.init(config=sweep_config)
 
         # Update the TrainConfig instance with parameters from wandb
         # This assumes that update_params will handle single value parameters correctly

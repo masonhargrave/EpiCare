@@ -26,3 +26,9 @@ parameters:
       - True
       - False
 program: iql.py
+
+command:
+  - python
+  - ${program}
+  - train
+  - hp_sweeps/iql_sweep_config.yaml

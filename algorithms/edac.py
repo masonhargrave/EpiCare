@@ -35,7 +35,7 @@ class TrainConfig:
     # wandb project name
     project: str = "EDAC-Benchmark"
     # wandb group name
-    group: str = "EDAC-EpiCare"
+    group: Optional[str] = ""  # DEPCRECATED
     # wandb run name
     name: str = "EDAC"
     # actor and critic hidden dim
@@ -122,7 +122,6 @@ def wandb_init(config: dict) -> None:
     wandb.init(
         config=config,
         project=config["project"],
-        group=config["group"],
         name=config["name"],
     )
     wandb.run.save()
@@ -894,7 +893,7 @@ if __name__ == "__main__":
             sweep_config = yaml.load(f, Loader=yaml.FullLoader)
 
         # Start a new wandb run
-        run = wandb.init(config=sweep_config, group="EDAC_EpiCare_sweep")
+        run = wandb.init(config=sweep_config)
 
         # Update the TrainConfig instance with parameters from wandb
         # This assumes that update_params will handle single value parameters correctly

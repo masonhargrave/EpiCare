@@ -34,3 +34,9 @@ parameters:
     values:
       - "smart"
 program: edac.py
+
+command:
+  - python
+  - ${program}
+  - train
+  - all_data_sweeps/edac_final_config.yaml

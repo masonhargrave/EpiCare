@@ -25,3 +25,9 @@ parameters:
     values:
       - "smart"
 program: bc.py
+
+command:
+  - python
+  - ${program}
+  - train
+  - all_data_sweeps/bc_final_config.yaml

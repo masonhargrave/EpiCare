@@ -23,3 +23,9 @@ parameters:
     values:
       - True
 program: cql.py
+
+command:
+  - python
+  - ${program}
+  - train
+  - hp_sweeps/cql_sweep_config.yaml

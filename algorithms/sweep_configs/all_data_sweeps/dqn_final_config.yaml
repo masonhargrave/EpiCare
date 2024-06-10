@@ -38,3 +38,9 @@ parameters:
     values:
       - 1
 program: dqn.py
+
+command:
+  - python
+  - ${program}
+  - train
+  - all_data_sweeps/dqn_final_config.yaml

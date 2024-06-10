@@ -38,3 +38,9 @@ parameters:
     values:
       - 32
 program: drn.py
+
+command:
+  - python
+  - ${program}
+  - train
+  - all_data_sweeps/drn_final_config.yaml

@@ -46,3 +46,9 @@ parameters:
     values:
       - True
 program: dqn.py
+
+command:
+  - python
+  - ${program}
+  - train
+  - data_restriction_sweeps/dqn_restriction_config.yaml

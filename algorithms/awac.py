@@ -31,7 +31,7 @@ class TrainConfig:
     # wandb project name
     project: str = "AWAC-Benchmark"
     # wandb group name
-    group: str = "AWAC-EpiCare"
+    group: Optional[str] = ""  # DEPCRECATED
     # wandb run name
     name: str = "AWAC"
     # training dataset and evaluation environment
@@ -676,6 +676,9 @@ if __name__ == "__main__":
     )
 
     train_parser = subparsers.add_parser("train", help="Train an instance of the model")
+    train_parser.add_argument(
+        "config-loc", type=str, metavar="NAME", help="location of config file"
+    )
 
     args = base_parser.parse_args()
 
@@ -697,11 +700,11 @@ if __name__ == "__main__":
         evaluations.grand_stats(combined_stats_df)
 
     elif args.subcommand == "train":
-        with open("./sweep_configs/all_data_sweeps/awac_final_config.yaml", "r") as f:
+        with open(f"./sweep_configs/{args.config_loc}", "r") as f:
             sweep_config = yaml.load(f, Loader=yaml.FullLoader)
 
         # Start a new wandb run
-        run = wandb.init(config=sweep_config, group="AWAC-EpiCare_final")
+        run = wandb.init(config=sweep_config)
 
         # Update the TrainConfig instance with parameters from wandb
         # This assumes that update_params will handle single value parameters correctly

@@ -27,4 +27,10 @@ parameters:
   behavior_policy:
     values:
       - "smart"
-program: awac.py
+program: awac.py train
+
+command:
+  - python
+  - ${program}
+  - train
+  - all_data_sweeps/awac_final_config.yaml
