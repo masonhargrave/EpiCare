@@ -414,7 +414,7 @@ def process_checkpoints(
         return mean, std
 
     if base_path is None:
-        base_path = "checkpoints"
+        base_path = "./algorithms/checkpoints"
 
     # Iterate over directories
     for dir_name in os.listdir(base_path):
@@ -437,8 +437,10 @@ def process_checkpoints(
                 checkpoint_path = os.path.join(base_path, dir_name, checkpoint_file)
 
                 # Loading model and environment
+                custom_dataset = load_custom_dataset(config)
+                all_episodes_avail = sum(custom_dataset["terminals"])
                 state_mean, state_std = compute_mean_std(
-                    load_custom_dataset(config)["observations"], eps=1e-3
+                    custom_dataset["observations"], eps=1e-3
                 )
                 print("Checkpoint path: ", checkpoint_path)
                 try:
@@ -487,7 +489,9 @@ def process_checkpoints(
                     key = estimator.lower()
                     offline_estimates[f"mean_{key}_estimate"] = np.mean(
                         estimates[estimator]
-                    ) * (100 / 64)
+                    ) * (
+                        100 / 64
+                    )  # ADD Normalization function to env
                     offline_estimates[f"std_{key}_estimate"] = np.std(
                         estimates[estimator]
                     ) * (100 / 64)
@@ -507,18 +511,21 @@ def process_checkpoints(
                     "mean_adverse_event_rate": mean_adverse_event_rate,
                     "sem_adverse_event_rate": sem_adverse_event_rate,
                 }
+                # This block assumes that if episodes_avail is not available
+                # Then the max number of episodes is being used
                 if hasattr(config, "episodes_avail"):
                     result["episodes_avail"] = config.episodes_avail
-                result.update(offline_estimates)
+                else:
+                    result["episodes_avail"] = all_episodes_avail
                 results.append(result)
 
     # Save results to csv
     results_df = pd.DataFrame(results)
-    Path("./results").mkdir(parents=True, exist_ok=True)
+    Path("./algorithms/results").mkdir(parents=True, exist_ok=True)
     csv_filename = (
-        f"./results/{out_name}.csv"
+        f"./algorithms/results/{out_name}.csv"
         if out_name
-        else f"./results/{model_name.lower()}_results.csv"
+        else f"./algorithms/results/{model_name.lower()}_results.csv"
     )
     results_df.to_csv(csv_filename, index=False)
 

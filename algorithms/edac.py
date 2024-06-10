@@ -69,7 +69,7 @@ class TrainConfig:
     # evaluation frequency, will evaluate eval_every training steps
     eval_every: int = 5
     # path for checkpoints saving, optional
-    checkpoints_path: Optional[str] = "./checkpoints"
+    checkpoints_path: Optional[str] = "./algorithms/checkpoints"
     # configure PyTorch to use deterministic algorithms instead
     # of nondeterministic ones
     deterministic_torch: bool = False

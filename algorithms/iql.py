@@ -77,7 +77,7 @@ class TrainConfig:
     # number of episodes to run during evaluation
     n_episodes: int = 1000
     # path for checkpoints saving, optional
-    checkpoints_path: Optional[str] = "./checkpoints"
+    checkpoints_path: Optional[str] = "./algorithms/checkpoints"
     # file name for loading a model, optional
     load_model: str = ""
     # training random seed

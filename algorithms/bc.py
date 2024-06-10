@@ -27,7 +27,7 @@ TensorBatch = List[torch.Tensor]
 class TrainConfig:
     batch_size: int = 256  # Batch size for all networks
     buffer_size: int = 1000000  # Replay buffer size
-    checkpoints_path: Optional[str] = "./checkpoints"  # Save path
+    checkpoints_path: Optional[str] = "./algorithms/checkpoints"  # Save path
     dataset_path: Optional[str] = None  # Path to the dataset
     device: str = "cuda"
     env: str = "EpiCare-v0"  # OpenAI gym environment name
