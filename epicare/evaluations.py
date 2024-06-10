@@ -487,14 +487,12 @@ def process_checkpoints(
                 )
                 for estimator in estimates:
                     key = estimator.lower()
-                    offline_estimates[f"mean_{key}_estimate"] = np.mean(
-                        estimates[estimator]
-                    ) * (
-                        100 / 64
-                    )  # ADD Normalization function to env
-                    offline_estimates[f"std_{key}_estimate"] = np.std(
-                        estimates[estimator]
-                    ) * (100 / 64)
+                    offline_estimates[f"mean_{key}_estimate"] = (
+                        env.get_normalized_score(estimates[estimator]) * 100
+                    )
+                    offline_estimates[f"std_{key}_estimate"] = (
+                        env.get_normalized_score_stds(estimates[estimator]) * 100
+                    )
 
                 result = {
                     "env_seed": config.env_seed,

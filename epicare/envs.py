@@ -478,9 +478,10 @@ class EpiCare(gym.Env):
         return self.reward_components, self.time_to_remission
 
     def get_normalized_score(self, returns):
-        max_possible_return = self.remission_reward
-        normalized_score = np.mean(returns) / max_possible_return
-        return normalized_score
+        return np.mean(returns) / self.remission_reward
+
+    def get_normalized_score_stds(self, returns):
+        return np.std(returns) / self.remission_reward
 
     def _adverse_event_probability(self, disease, treatment):
         # The probability of an adverse event is the probability that the tanh'ed sum of
