@@ -472,28 +472,6 @@ def process_checkpoints(
                     config.include_previous_action,
                 )
 
-                # Offline evaluation
-                offline_estimates = {}
-                hdf5_path = os.path.join(
-                    "data/smart", f"test_seed_{config.env_seed}.hdf5"
-                )
-                estimates = evaluate_offline(
-                    hdf5_path,
-                    config,
-                    actor,
-                    q_nets,
-                    device=config.device,
-                    discount=1.0,
-                )
-                for estimator in estimates:
-                    key = estimator.lower()
-                    offline_estimates[f"mean_{key}_estimate"] = (
-                        env.get_normalized_score(estimates[estimator]) * 100
-                    )
-                    offline_estimates[f"std_{key}_estimate"] = (
-                        env.get_normalized_score_stds(estimates[estimator]) * 100
-                    )
-
                 result = {
                     "env_seed": config.env_seed,
                     "seed": config.seed,
@@ -509,6 +487,28 @@ def process_checkpoints(
                     "mean_adverse_event_rate": mean_adverse_event_rate,
                     "sem_adverse_event_rate": sem_adverse_event_rate,
                 }
+
+                # Offline evaluation
+                hdf5_path = os.path.join(
+                    "data/smart", f"test_seed_{config.env_seed}.hdf5"
+                )
+                estimates = evaluate_offline(
+                    hdf5_path,
+                    config,
+                    actor,
+                    q_nets,
+                    device=config.device,
+                    discount=1.0,
+                )
+                for estimator in estimates:
+                    key = estimator.lower()
+                    result[f"mean_{key}_estimate"] = (
+                        env.get_normalized_score(estimates[estimator]) * 100
+                    )
+                    result[f"std_{key}_estimate"] = (
+                        env.get_normalized_score_stds(estimates[estimator]) * 100
+                    )
+
                 # This block assumes that if episodes_avail is not available
                 # Then the max number of episodes is being used
                 if hasattr(config, "episodes_avail"):
