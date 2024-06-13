@@ -38,7 +38,7 @@ These dependencies will be automatically installed during the EpiCare installati
 
 ## The EpiCare Environment
 
-The EpiCare environmet is an Gym environment which simulates longitudinal patient care for procdurally generated diseases. Full details about the environment can be found in our paper. To load the environment run:
+The EpiCare environmet is an Gym environment which simulates longitudinal patient care. Full details about the environment can be found in our paper. To load the environment run:
 
 ```python
 from epicare.envs import EpiCare
