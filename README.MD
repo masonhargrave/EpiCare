@@ -66,6 +66,9 @@ In addition to the EpiCare environment, we have included single-file implementat
 - TD3+BC
 - CQL
 - IQL
+- DQN
+- DRN (Deep Reward Network)
+- BC
 
 ## Reproducing our Results
 
