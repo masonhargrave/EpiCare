@@ -12,6 +12,11 @@ Ensure you have PyTorch installed on your system. Visit [PyTorch's official inst
 
 ### Installing EpiCare
 
+Create a new conda environment with python version 3.9+ using
+```bash
+conda create --name EpiCare python==python3.10
+```
+
 Clone the EpiCare repository to your local machine and navigate to the code directory. Then, install EpiCare along with its dependencies by running:
 
 ```bash
