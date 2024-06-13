@@ -119,7 +119,7 @@ To customize hyperparameters beyond the defaults for a given model, update the c
 
 ### Data-Restricted Training
 
-EpiCare offers functionality for training under data-restricted scenarios. This feature focuses on the first environment seed and varies the number of training episodes (though in principle the experiment could be run for any environment seed of your choosing). Configuration files for the three best-performing models are located in `algorithms/sweep_configs/data_restriction_sweeps`. Checkpoints for these runs are only saved at the very end in the `algorithms/checkpoints` directory.
+EpiCare offers functionality for training under data-restricted scenarios. This feature focuses on the first environment seed and varies the number of training episodes (though in principle the experiment could be run for any environment seed of your choosing). Configuration files for the three best-performing models are located in `algorithms/sweep_configs/data_restriction_sweeps`. Checkpoints for these runs are saved in the `algorithms/checkpoints` directory.
 
 ### Evaluating Models After Training
 
