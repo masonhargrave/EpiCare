@@ -24,4 +24,4 @@ command:
   - python
   - ${program}
   - train
-  - algorithms/hp_sweeps/awac_sweep_config.yaml
+  - hp_sweeps/awac_sweep_config.yaml

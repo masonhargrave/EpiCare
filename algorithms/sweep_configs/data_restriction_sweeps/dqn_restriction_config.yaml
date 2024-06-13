@@ -45,7 +45,7 @@ parameters:
   include_previous_action:
     values:
       - True
-program: dqn.py
+program: algorithms/dqn.py
 
 command:
   - python

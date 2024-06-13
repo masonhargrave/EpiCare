@@ -33,7 +33,7 @@ parameters:
   behavior_policy:
     values:
       - "smart"
-program: iql.py
+program: algorithms/iql.py
 
 command:
   - python

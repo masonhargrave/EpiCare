@@ -45,7 +45,7 @@ parameters:
   qf_lr:
     values:
       - 1e-4
-program: cql.py
+program: algorithms/cql.py
 
 command:
   - python

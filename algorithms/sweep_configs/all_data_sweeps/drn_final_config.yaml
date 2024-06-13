@@ -37,7 +37,7 @@ parameters:
   num_checkpoints:
     values:
       - 32
-program: drn.py
+program: algorithms/drn.py
 
 command:
   - python

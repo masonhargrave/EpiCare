@@ -34,7 +34,7 @@ parameters:
   include_previous_action:
     values:
       - True
-program: td3_bc.py
+program: algorithms/td3_bc.py
 
 command:
   - python

@@ -37,7 +37,7 @@ parameters:
   num_checkpoints:
     values:
       - 32
-program: cql.py
+program: algorithms/cql.py
 
 command:
   - python

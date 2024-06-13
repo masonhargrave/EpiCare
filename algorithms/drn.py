@@ -627,7 +627,7 @@ if __name__ == "__main__":
 
     train_parser = subparsers.add_parser("train", help="Train an instance of the model")
     train_parser.add_argument(
-        "config-loc", type=str, metavar="NAME", help="location of config file"
+        "config_loc", type=str, metavar="NAME", help="location of config file"
     )
 
     args = base_parser.parse_args()
@@ -650,7 +650,7 @@ if __name__ == "__main__":
         evaluations.grand_stats(combined_stats_df)
 
     elif args.subcommand == "train":
-        with open(f"./sweep_configs/{args.config_loc}", "r") as f:
+        with open(f"algorithms/sweep_configs/{args.config_loc}", "r") as f:
             sweep_config = yaml.load(f, Loader=yaml.FullLoader)
 
         # Start a new wandb run

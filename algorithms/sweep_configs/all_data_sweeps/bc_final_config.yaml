@@ -24,7 +24,7 @@ parameters:
   behavior_policy:
     values:
       - "smart"
-program: bc.py
+program: algorithms/bc.py
 
 command:
   - python

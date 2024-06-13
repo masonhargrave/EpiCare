@@ -27,7 +27,7 @@ parameters:
   behavior_policy:
     values:
       - "smart"
-program: awac.py train
+program: algorithms/awac.py
 
 command:
   - python

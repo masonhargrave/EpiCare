@@ -33,7 +33,7 @@ parameters:
   behavior_policy:
     values:
       - "smart"
-program: edac.py
+program: algorithms/edac.py
 
 command:
   - python

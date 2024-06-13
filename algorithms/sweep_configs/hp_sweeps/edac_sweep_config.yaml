@@ -29,7 +29,7 @@ parameters:
     values:
       - True
       - False
-program: edac.py
+program: algorithms/edac.py
 
 command:
   - python

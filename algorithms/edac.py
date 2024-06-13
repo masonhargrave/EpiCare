@@ -57,7 +57,7 @@ class TrainConfig:
     # maximum size of the replay buffer
     buffer_size: int = 1_000_000
     # training dataset and evaluation environment
-    env: str = "EpiCare-v0"
+    env_name: str = "EpiCare-v0"
     # training batch size
     batch_size: int = 256
     # total number of training epochs
@@ -868,6 +868,9 @@ if __name__ == "__main__":
     )
 
     train_parser = subparsers.add_parser("train", help="Train an instance of the model")
+    train_parser.add_argument(
+        "config_loc", type=str, metavar="NAME", help="location of config file"
+    )
 
     args = base_parser.parse_args()
 
@@ -889,7 +892,7 @@ if __name__ == "__main__":
         evaluations.grand_stats(combined_stats_df)
 
     elif args.subcommand == "train":
-        with open("./sweep_configs/hp_sweeps/edac_sweep_config.yaml", "r") as f:
+        with open(f"algorithms/sweep_configs/{args.config_loc}", "r") as f:
             sweep_config = yaml.load(f, Loader=yaml.FullLoader)
 
         # Start a new wandb run

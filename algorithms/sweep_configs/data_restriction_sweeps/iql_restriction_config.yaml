@@ -39,7 +39,7 @@ parameters:
   include_previous_action:
     values:
       - True
-program: iql.py
+program: algorithms/iql.py
 
 command:
   - python

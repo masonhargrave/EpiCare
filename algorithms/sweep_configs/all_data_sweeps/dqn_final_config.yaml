@@ -37,7 +37,7 @@ parameters:
   num_checkpoints:
     values:
       - 1
-program: dqn.py
+program: algorithms/dqn.py
 
 command:
   - python
