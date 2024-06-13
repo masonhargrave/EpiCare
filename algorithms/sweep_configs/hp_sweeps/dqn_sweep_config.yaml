@@ -26,4 +26,4 @@ command:
   - python
   - ${program}
   - train
-  - algorithms/hp_sweeps/dqn_restriction_config.yaml
+  - hp_sweeps/dqn_restriction_config.yaml

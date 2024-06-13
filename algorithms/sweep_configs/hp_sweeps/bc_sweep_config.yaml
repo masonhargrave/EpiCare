@@ -22,4 +22,4 @@ command:
   - python
   - ${program}
   - train
-  - algorithms/hp_sweeps/bc_sweep_config.yaml
+  - hp_sweeps/bc_sweep_config.yaml

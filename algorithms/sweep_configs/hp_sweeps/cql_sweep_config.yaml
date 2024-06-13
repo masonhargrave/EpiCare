@@ -28,4 +28,4 @@ command:
   - python
   - ${program}
   - train
-  - algorithms/hp_sweeps/cql_sweep_config.yaml
+  - hp_sweeps/cql_sweep_config.yaml

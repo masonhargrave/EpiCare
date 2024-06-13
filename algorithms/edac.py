@@ -77,6 +77,8 @@ class TrainConfig:
     train_seed: int = 10
     # evaluation random seed
     eval_seed: int = 42
+    # environment random seed
+    env_seed: int = 1
     # frequency of metrics logging to the wandb
     log_every: int = 100
     # training device
