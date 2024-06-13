@@ -6,16 +6,16 @@ Welcome to EpiCare, a benchmarking library for reinforcement learning in healthc
 
 To get started with EpiCare, please follow the installation steps below:
 
-### Prerequisites
-
-Ensure you have PyTorch installed on your system. Visit [PyTorch's official installation guide](https://pytorch.org/get-started/locally/) for detailed instructions.
-
-### Installing EpiCare
+### Before Installing 
 
 Create a new conda environment with python version 3.9+ using
 ```bash
 conda create --name EpiCare python==python3.10
 ```
+
+Ensure you have PyTorch installed on your system. Visit [PyTorch's official installation guide](https://pytorch.org/get-started/locally/) for detailed instructions.
+
+### Installing EpiCare
 
 Clone the EpiCare repository to your local machine and navigate to the code directory. Then, install EpiCare along with its dependencies by running:
 
