@@ -17,7 +17,7 @@ Ensure you have PyTorch installed on your system. Visit [PyTorch's official inst
 
 ### Installing EpiCare
 
-Clone the EpiCare repository to your local machine and navigate to the code directory. Then, install EpiCare along with its dependencies by running:
+Clone the EpiCare repository to your local machine and navigate to the root directory. Then, install EpiCare along with its dependencies by running:
 
 ```bash
 pip install -e .
