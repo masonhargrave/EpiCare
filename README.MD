@@ -80,7 +80,7 @@ To generate the necessary training data, navigate to the `data` directory and ex
 python data_gen.py
 ```
 
-This script prepares the data required for training the included offline RL models as well as any other models you may want to test. This data conforms by-and-large to the D4RL standards and can be loaded for other RL pipelines using our data loader found in `epicare.utils.load_custom_datset`.
+This script prepares the data required for training the included offline RL models as well as any other models you may want to test. This data conforms to the D4RL standards and can be loaded for other RL pipelines using our data loader found in `epicare.utils.load_custom_datset`.
 
 ### Hyperparameter Optimization
 
