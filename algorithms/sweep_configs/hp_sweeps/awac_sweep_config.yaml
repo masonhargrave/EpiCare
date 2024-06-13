@@ -18,10 +18,10 @@ parameters:
     values:
       - False
       - True
-program: awac.py
+program: algorithms/awac.py
 
 command:
   - python
   - ${program}
   - train
-  - hp_sweeps/awac_sweep_config.yaml
+  - algorithms/hp_sweeps/awac_sweep_config.yaml

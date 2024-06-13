@@ -16,10 +16,10 @@ parameters:
     values:
       - True
       - False
-program: bc.py
+program: algorithms/bc.py
 
 command:
   - python
   - ${program}
   - train
-  - hp_sweeps/bc_sweep_config.yaml
+  - algorithms/hp_sweeps/bc_sweep_config.yaml

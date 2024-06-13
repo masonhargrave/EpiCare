@@ -20,10 +20,10 @@ parameters:
     values:
       - True
       - False
-program: dqn.py
+program: algorithms/dqn.py
 
 command:
   - python
   - ${program}
   - train
-  - hp_sweeps/dqn_restriction_config.yaml
+  - algorithms/hp_sweeps/dqn_restriction_config.yaml

@@ -22,10 +22,10 @@ parameters:
   include_previous_action:
     values:
       - True
-program: cql.py
+program: algorithms/cql.py
 
 command:
   - python
   - ${program}
   - train
-  - hp_sweeps/cql_sweep_config.yaml
+  - algorithms/hp_sweeps/cql_sweep_config.yaml
