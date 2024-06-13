@@ -46,7 +46,7 @@ from epicare.envs import EpiCare
 env = EpiCare()
 ```
 
-The environment is highly customizable, take a look at the paper for inspiration on what might be worth configuring for your own projects. See `figures/figures.ipynb` for some examples of running and evaluating custom policies on this environment.
+The environment is highly customizable, take a look at the paper for inspiration on what might be worth configuring for your own projects. See `figures/figures.ipynb` (especially cell 2) for some examples of running and evaluating custom policies on this environment.
 
 If you would like to use `gym` to test any methods on this environment, simply run
 
