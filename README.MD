@@ -115,7 +115,7 @@ With the hyperparameters set, you can proceed to train the models. EpiCare's fra
 - Follow the resulting instructions to launch agents to train your selected model.
 - Model checkpoints are saved periodically throughout training runs in the `algorithms/checkpoints` directory
 
-To customize hyperparameters beyond the defaults, modify the code directly or update the configuration files accordingly.
+To customize hyperparameters beyond the defaults for a given model, update the configuration files.
 
 ### Data-Restricted Training
 
