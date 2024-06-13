@@ -108,7 +108,7 @@ EpiCare integrates with Weights & Biases (W&B) for hyperparameter optimization. 
 
 With the hyperparameters set, you can proceed to train the models. EpiCare's framework allows you to queue the training of multiple replicates across multiple environment seed using a single command by way of another sweep process.
 
-- For each configuration in `algorithms/sweep_configs/full_data_sweeps`, initiate a sweep with:
+- For each configuration in `algorithms/sweep_configs/all_data_sweeps`, initiate a sweep with:
   ```bash
   wandb sweep --project EpiCare [CONFIG FILE]
   ```
@@ -119,26 +119,16 @@ To customize hyperparameters beyond the defaults, modify the code directly or up
 
 ### Data-Restricted Training
 
-EpiCare offers functionality for training under data-restricted scenarios. This feature focuses on the first environment seed and varies the number of training episodes (though in principle the experiment could be run for any environment seed of your choosing). Configuration files for the three best-performing models are located in `algorithms/sweep_configs/data_restriction_sweeps`. Checkpoints for these runs are only saved at the very end in the `algorithms/checkpoints_restricted` directory.
+EpiCare offers functionality for training under data-restricted scenarios. This feature focuses on the first environment seed and varies the number of training episodes (though in principle the experiment could be run for any environment seed of your choosing). Configuration files for the three best-performing models are located in `algorithms/sweep_configs/data_restriction_sweeps`. Checkpoints for these runs are only saved at the very end in the `algorithms/checkpoints` directory.
 
 ### Evaluating Models After Training
 
-Inside the `algorithms` directory are evaluation scripts for each model (e.g. `awac_evaluate.py`). To evaluate full-data training runs, simply run `python awac_evaluate.py`, and the evaluation results will be output to `awac_results.csv`.
+To evaluate the final checkpoint of each run, simply run `python algorithms/awac.py evaluate`, and the evaluation results will be output to `results/awac_results.csv`.
 
-Similarly, to evaluate the restricted runs, simply run
-
-```bash
-python awac_evaluate.py --base_path checkpoints_restricted --out_file awac_resctriction
-```
-
-These instructions work for all other algorithms provided simply by swapping out the algorithm name in the commands.
+These instructions work for all other algorithms provided simply by swapping out the algorithm name in the commands (i.e. subbing `edac.py` instead of `awac.py`).
 
 ### Final Analysis
 
-In the `figures` directory we have included a jupyter notebook with examples for how we analyzed our results and produced most of the figures found in our paper. After running all full-data and data restriction trials as described above, this notebook should allow to to reproduce the main results of the paper.
+In the `figures` directory we have included a jupyter notebook with examples for how we analyzed our results and produced most of the figures found in our paper. After running all full-data and data restriction trials as described above, this notebook allows you to reproduce the main results of the paper.
 
-The python packages required to run `figures.ipynb` are included in `requiremkents.txt`. To install, run `pip install -f requirements.txt` while in the `figures` directory.
-
-```
-
-```
+The python packages required to run `figures.ipynb` are included in `requirements.txt`. To install, run `pip install -f requirements.txt` while in the `figures` directory.
