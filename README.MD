@@ -90,7 +90,7 @@ EpiCare integrates with Weights & Biases (W&B) for hyperparameter optimization. 
 2. **Creating a Sweep**:
 
    - Choose a configuration file corresponding to the RL model of your choice from the `algorithms/sweep_configs/hp_sweeps` directory.
-   - Create a hyperparameter sweep project by navigtating to the `algorithms` directory and running:
+   - Create a hyperparameter sweep project by running:
      ```bash
      wandb sweep --project EpiCare [CONFIG FILE]
      ```
