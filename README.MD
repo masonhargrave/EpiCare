@@ -106,7 +106,7 @@ EpiCare integrates with Weights & Biases (W&B) for hyperparameter optimization. 
 
 ### Training Models
 
-With the hyperparameters set, you can proceed to train the models. EpiCare's framework allows you to queue the training of multiple replicates across multiple environment seed using a single command by way of another sweep process.
+With the hyperparameters set, you can proceed to train the models. EpiCare's framework allows you to queue the training of multiple replicates across multiple environment seeds using a single command by way of another sweep process.
 
 - For each configuration in `algorithms/sweep_configs/all_data_sweeps`, initiate a sweep with:
   ```bash
