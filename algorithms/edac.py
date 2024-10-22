@@ -57,7 +57,7 @@ class TrainConfig:
     # maximum size of the replay buffer
     buffer_size: int = 1_000_000
     # training dataset and evaluation environment
-    env_name: str = "EpiCare-v0"
+    env: str = "EpiCare-v0"
     # training batch size
     batch_size: int = 256
     # total number of training epochs

@@ -8,14 +8,17 @@ from epicare.envs import EpiCare
 from epicare.policies import ClinicalTrial, Oracle, Random, StandardOfCare
 
 
-def generate_one(seed, prefix):
+def generate_one(seed, prefix, patient_modifiers):
     filename = f"{args.policy}/{prefix}_seed_{seed}.hdf5"
+    if patient_modifiers:
+        # Add a suffix to the filename to indicate that patient modifiers are included
+        filename = filename.replace(".hdf5", "_patient_modifiers.hdf5")
     if os.path.exists(filename):
         print(filename, "already exists, skipping")
         return
 
     # Initialize environment
-    env = EpiCare(seed=seed)
+    env = EpiCare(seed=seed, patient_modifiers=patient_modifiers)
 
     policy = policy_factory(env)
 
@@ -90,6 +93,12 @@ if __name__ == "__main__":
         default="smart",
         help="Which policy to use for data generation",
     )
+    parser.add_argument(
+        "--patient-modifiers",
+        action="store_true",
+        default=False,
+        help="Whether include patient-specific modifiers",
+    )
     args = parser.parse_args()
 
     policy_factory = dict(
@@ -105,7 +114,9 @@ if __name__ == "__main__":
     )
 
     todo = [
-        (seed + 1, prefix) for seed in range(args.seeds) for prefix in ("train", "test")
+        (seed + 1, prefix, args.patient_modifiers)
+        for seed in range(args.seeds)
+        for prefix in ("train", "test")
     ]
     with Pool(12) as p:
         p.starmap(generate_one, todo)

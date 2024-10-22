@@ -155,6 +155,7 @@ class EpiCare(gym.Env):
         use_disease_rewards=False,
         treatment_affect_observation=True,
         even_class_distribution=False,
+        patient_modifiers=True,
     ):
         super(EpiCare, self).__init__()
 
@@ -178,6 +179,7 @@ class EpiCare(gym.Env):
         self.even_class_distribution = even_class_distribution
         self.treatment_cost_range = (1, max(1, (remission_reward / (2 * max_visits))))
         self.num_diseases_for_treatment_range = (1, max(2, n_diseases // 8))
+        self.patient_modifiers = patient_modifiers
 
         # Step tracking
         self.visit_number = 0
@@ -329,10 +331,12 @@ class EpiCare(gym.Env):
             },
         )
 
-    def apply_treatment_and_transition_disease(self, action, treatment):
+    def apply_treatment_and_transition_disease(self, treatment):
         treatment_modifiers = treatment["transition_modifiers"]
         modified_transitions = (
-            self.transition_matrix[self.current_disease_index] * treatment_modifiers
+            self.transition_matrix[self.current_disease_index]
+            * treatment_modifiers
+            * self.patient_transition_modifiers
         )
         modified_transitions /= modified_transitions.sum()
         new_disease_index = np.random.choice(self.n_diseases, p=modified_transitions)
@@ -344,7 +348,9 @@ class EpiCare(gym.Env):
         self.reward_components["state_based"] -= disease_cost
 
         # Fluctuate symptoms based on disease distributions and then adjust them based on treatment effects
-        self.current_symptoms = self.sample_symptoms(mod=treatment["treatment_effects"])
+        self.current_symptoms = self.sample_symptoms(
+            mod=treatment["treatment_effects"] + self.patient_symptom_modifiers
+        )
 
         symptom_cost = self.symptom_reward_multiplier * self.current_symptoms.sum()
         self.reward_components["symptom_based"] -= symptom_cost
@@ -361,17 +367,22 @@ class EpiCare(gym.Env):
         reward -= treatment_cost
 
         # Handle potential remission
-        if np.random.rand() < self.diseases[self.current_disease][
-            "remission_probs"
-        ].get(action, 0):
+        if (
+            np.random.rand()
+            < self.diseases[self.current_disease]["remission_probs"].get(action, 0)
+            * self.patient_remission_modifiers[action]
+        ):
             return self.handle_remission(action, reward)
 
         # Handle disease transition and symptom changes
-        reward += self.apply_treatment_and_transition_disease(action, treatment)
+        reward += self.apply_treatment_and_transition_disease(treatment)
 
         # Handle the other two types of termination: adverse events when any symptom is
         # too severe, and reaching the maximum number of visits.
-        adverse_event = self.current_symptoms.max() > self.adverse_event_threshold
+        adverse_event = (
+            self.current_symptoms.max()
+            > self.adverse_event_threshold * self.patient_ae_modifier
+        )
         if adverse_event:
             self.reward_components["adverse_event"] += self.adverse_event_reward
             reward += self.adverse_event_reward
@@ -450,6 +461,27 @@ class EpiCare(gym.Env):
         self.current_disease = np.random.choice(
             self.disease_list, p=self.stationary_distribution
         )
+        if self.patient_modifiers:
+            self.patient_transition_modifiers = np.random.uniform(
+                0.25, 1.75, size=self.n_diseases
+            )
+            self.patient_remission_modifiers = np.random.uniform(
+                0.25, 1.75, size=self.n_treatments
+            )
+            self.patient_ae_modifier = np.random.uniform(
+                self.adverse_event_threshold, 1 / self.adverse_event_threshold
+            )
+            self.patient_symptom_modifiers = np.random.uniform(
+                self.symptom_modulation_range[0],
+                self.symptom_modulation_range[1],
+                size=self.n_symptoms,
+            )
+
+        else:
+            self.patient_transition_modifiers = np.ones(self.n_diseases)
+            self.patient_remission_modifiers = np.ones(self.n_treatments)
+            self.patient_ae_modifier = 1
+            self.patient_symptom_modifiers = np.zeros(self.n_symptoms)
         self.current_disease_index = self.disease_list.index(self.current_disease)
         self.current_symptoms = (
             self.sample_symptoms()

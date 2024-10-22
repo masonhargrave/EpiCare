@@ -14,5 +14,6 @@ setup(
         "tqdm",
         "wandb",
         "scipy",
+        "matplotlib"
     ],
 )

@@ -59,7 +59,6 @@ class TrainConfig:
         self.dataset_path = (
             f"./data/{self.behavior_policy}/train_seed_{self.env_seed}.hdf5"
         )
-        self.checkpoints_path = f"./{self.behavior_policy}_checkpoints"
         self.name = f"{self.name}-{self.env}-{self.seed}-{self.env_seed}-{str(uuid.uuid4())[:8]}"
         if self.checkpoints_path is not None:
             self.checkpoints_path = os.path.join(self.checkpoints_path, self.name)
